@@ -522,6 +522,91 @@ ui <- page_navbar(
         tableOutput("data_table")
       )
     )
+  ),
+
+  # ═══════════════════════════════════════════════════════
+  #  TAB 4: PROFILE MATRIX (Appendix Figures)
+  # ═══════════════════════════════════════════════════════
+  nav_panel("Profile Matrix", icon = icon("grip"),
+    layout_sidebar(
+      fillable = TRUE,
+      sidebar = sidebar(
+        width = 320,
+        id = "matrix_sidebar",
+        accordion(
+          id = "acc_matrix",
+          open = c("Data Source", "Panel Settings", "Appearance"),
+
+          accordion_panel("Data Source", icon = icon("database"),
+            helpText("Select sheets with paired columns (X, Y, X, Y, ...) for each case.",
+                     style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
+            uiOutput("matrix_sheet_selector"),
+            textInput("matrix_panel_prefix", "Panel label prefix", value = "Year"),
+            helpText("Each pair of columns becomes one panel. Labels: 'Year 1', 'Year 2', etc.",
+                     style = "font-size:0.62rem;color:#999;font-style:italic;"),
+            actionButton("matrix_load_btn", "Generate Matrix",
+                         class = "btn-academic w-100", icon = icon("th"))
+          ),
+
+          accordion_panel("Panel Settings", icon = icon("table-cells"),
+            numericInput("matrix_ncol", "Columns", value = 5, min = 1, max = 10, step = 1),
+            numericInput("matrix_nrow", "Rows", value = 2, min = 1, max = 10, step = 1),
+            checkboxInput("matrix_free_y", "Free Y scales across panels", value = FALSE),
+            checkboxInput("matrix_free_x", "Free X scales across panels", value = FALSE)
+          ),
+
+          accordion_panel("Appearance", icon = icon("palette"),
+            textInput("matrix_title", "Plot title", value = ""),
+            textInput("matrix_xlabel", "X axis label", value = "Pipeline Length [m]"),
+            textInput("matrix_ylabel", "Y axis label", value = ""),
+            selectInput("matrix_palette", "Colour palette",
+                        choices = names(PALETTES), selected = "Classic Academic"),
+            sliderInput("matrix_line_weight", "Line weight", min = 0.3, max = 3, value = 0.7, step = 0.1),
+            numericInput("matrix_base_size", "Base font size", value = 11, min = 6, max = 24, step = 1),
+            numericInput("matrix_strip_size", "Panel label size", value = 10, min = 6, max = 20, step = 1),
+            selectInput("matrix_grid", "Grid lines",
+                        choices = c("None" = "none", "Major" = "major",
+                                    "Major + Minor" = "both",
+                                    "X only" = "x", "Y only" = "y"),
+                        selected = "major"),
+            selectInput("matrix_legend_pos", "Legend position",
+                        choices = c("Bottom" = "bottom", "Right" = "right",
+                                    "Top" = "top", "Hidden" = "none"),
+                        selected = "bottom"),
+            numericInput("matrix_legend_cols", "Legend columns", value = 5, min = 1, max = 10, step = 1)
+          ),
+
+          accordion_panel("Export", icon = icon("download"),
+            fluidRow(
+              column(6, numericInput("matrix_export_w", "W (in)", value = 14, min = 4, max = 30, step = 0.5)),
+              column(6, numericInput("matrix_export_h", "H (in)", value = 8, min = 3, max = 20, step = 0.5))
+            ),
+            fluidRow(
+              column(6, numericInput("matrix_export_dpi", "DPI", value = 300, min = 72, max = 1200, step = 50)),
+              column(6, selectInput("matrix_export_fmt", "Format",
+                                    choices = c("SVG" = "svg", "PDF" = "pdf",
+                                                "PNG" = "png", "TIFF" = "tiff"),
+                                    selected = "pdf"))
+            ),
+            textInput("matrix_export_filename", "Filename", value = "appendix_figure"),
+            downloadButton("matrix_download", "Export Matrix",
+                           class = "btn-export w-100", icon = icon("download"))
+          )
+        ) # end accordion
+      ), # end sidebar
+
+      # Main content: the matrix plot
+      layout_column_wrap(
+        width = 1,
+        card(
+          card_header("Profile Matrix Preview"),
+          card_body(
+            class = "plot-container text-center",
+            plotOutput("matrix_plot", height = "700px", width = "100%")
+          )
+        )
+      )
+    ) # end layout_sidebar
   )
 )
 
@@ -1433,6 +1518,200 @@ server <- function(input, output, session) {
         ggsave(file, plot = p, width = w, height = h, dpi = dpi,
                device = fmt, bg = "white")
       }
+    }
+  )
+
+  # ══════════════════════════════════════════════════════
+  #  PROFILE MATRIX (Appendix Figures A1/A2)
+  # ══════════════════════════════════════════════════════
+
+  # Sheet selector for the matrix tab
+  output$matrix_sheet_selector <- renderUI({
+    req(rv$sheet_names)
+    selectInput("matrix_sheet", "Sheet", choices = rv$sheet_names)
+  })
+
+  # Reactive: parse paired-column data into long format
+  matrix_data <- reactiveVal(NULL)
+
+  observeEvent(input$matrix_load_btn, {
+    req(rv$raw_data, input$matrix_sheet)
+    df <- rv$raw_data[[input$matrix_sheet]]
+    req(df)
+
+    nc <- ncol(df)
+    if (nc < 2 || nc %% 2 != 0) {
+      showNotification("Sheet must have an even number of columns (X,Y pairs)", type = "error")
+      return()
+    }
+
+    n_panels <- nc %/% 2
+    prefix <- input$matrix_panel_prefix %||% "Year"
+    long_list <- list()
+
+    for (i in seq_len(n_panels)) {
+      x_idx <- (i - 1) * 2 + 1
+      y_idx <- (i - 1) * 2 + 2
+
+      x_vals <- suppressWarnings(as.numeric(df[[x_idx]]))
+      y_vals <- suppressWarnings(as.numeric(df[[y_idx]]))
+      valid <- !is.na(x_vals) & !is.na(y_vals)
+
+      if (sum(valid) == 0) next
+
+      # Extract case label from header
+      raw_label <- colnames(df)[y_idx]
+      case_label <- raw_label
+      m <- regmatches(raw_label, regexpr('"([^"]+)\\.ppl"', raw_label, perl = TRUE))
+      if (length(m) > 0 && nchar(m) > 0) {
+        case_label <- gsub('^"|"$', "", gsub("\\.ppl", "", m))
+      }
+
+      panel_label <- paste(prefix, i)
+
+      long_list[[i]] <- data.frame(
+        x = x_vals[valid],
+        y = y_vals[valid],
+        panel = panel_label,
+        case_label = case_label,
+        panel_idx = i,
+        stringsAsFactors = FALSE
+      )
+    }
+
+    if (length(long_list) == 0) {
+      showNotification("No valid data pairs found", type = "error")
+      return()
+    }
+
+    long_df <- do.call(rbind, long_list)
+    # Order panels by index
+    long_df$panel <- factor(long_df$panel,
+                            levels = paste(prefix, seq_len(n_panels)))
+
+    matrix_data(long_df)
+
+    # Auto-set labels from sheet name
+    sheet_nm <- input$matrix_sheet
+    if (grepl("pressure", sheet_nm, ignore.case = TRUE)) {
+      updateTextInput(session, "matrix_ylabel", value = "Pressure [bara]")
+      updateTextInput(session, "matrix_title",
+                      value = "Complete Pressure Profile Matrix")
+      updateTextInput(session, "matrix_export_filename",
+                      value = "appendix_figure_A1_pressure_profile")
+    } else if (grepl("temperature", sheet_nm, ignore.case = TRUE)) {
+      updateTextInput(session, "matrix_ylabel", value = "Temperature [\u00b0C]")
+      updateTextInput(session, "matrix_title",
+                      value = "Complete Temperature Profile Matrix")
+      updateTextInput(session, "matrix_export_filename",
+                      value = "appendix_figure_A2_temperature_profile")
+    }
+
+    showNotification(
+      paste0("\u2713 ", n_panels, " panels loaded from \"", sheet_nm, "\""),
+      type = "message", duration = 4
+    )
+  })
+
+  # Build the matrix plot
+  build_matrix_plot <- reactive({
+    long_df <- matrix_data()
+
+    if (is.null(long_df)) {
+      p <- ggplot() + theme_academic(base_size = 14) +
+        annotate("text", x = 0.5, y = 0.5,
+                 label = "Upload data and click 'Generate Matrix' to create profile plots",
+                 size = 5, color = "#999999", fontface = "italic") +
+        xlim(0, 1) + ylim(0, 1) +
+        theme(axis.title = element_blank(), axis.text = element_blank(),
+              axis.ticks = element_blank(), panel.border = element_blank(),
+              axis.line = element_blank())
+      return(p)
+    }
+
+    base_sz <- input$matrix_base_size %||% 11
+    strip_sz <- input$matrix_strip_size %||% 10
+    lw <- input$matrix_line_weight %||% 0.7
+    pal <- PALETTES[[input$matrix_palette %||% "Classic Academic"]]
+    n_panels <- length(unique(long_df$panel))
+
+    # Determine facet scales
+    scales_arg <- "fixed"
+    if (isTRUE(input$matrix_free_y) && isTRUE(input$matrix_free_x)) {
+      scales_arg <- "free"
+    } else if (isTRUE(input$matrix_free_y)) {
+      scales_arg <- "free_y"
+    } else if (isTRUE(input$matrix_free_x)) {
+      scales_arg <- "free_x"
+    }
+
+    ncol_val <- input$matrix_ncol %||% 5
+
+    # Assign one color per panel
+    panel_levels <- levels(long_df$panel)
+    color_map <- setNames(
+      pal[((seq_along(panel_levels) - 1) %% length(pal)) + 1],
+      panel_levels
+    )
+
+    p <- ggplot(long_df, aes(x = x, y = y, color = panel)) +
+      geom_line(linewidth = lw, show.legend = FALSE) +
+      facet_wrap(~ panel, ncol = ncol_val, scales = scales_arg) +
+      scale_color_manual(values = color_map) +
+      theme_academic(base_size = base_sz,
+                     grid = input$matrix_grid %||% "major",
+                     border = TRUE, ticks_inward = TRUE) +
+      theme(
+        strip.text = element_text(size = strip_sz, face = "bold",
+                                  margin = margin(4, 4, 4, 4)),
+        strip.background = element_rect(fill = "#f0f0f0", color = "#cccccc"),
+        panel.spacing = unit(0.8, "lines")
+      )
+
+    # Labels
+    x_lab <- parse_label(input$matrix_xlabel %||% "Pipeline Length [m]")
+    y_lab <- parse_label(input$matrix_ylabel %||% "")
+    t_lab <- input$matrix_title %||% ""
+
+    p <- p + labs(x = x_lab, y = y_lab)
+
+    if (nchar(t_lab) > 0) {
+      p <- p + ggtitle(t_lab) +
+        theme(plot.title = element_text(size = base_sz + 4, face = "bold",
+                                        hjust = 0.5, margin = margin(b = 10)))
+    }
+
+    # Legend
+    leg_pos <- input$matrix_legend_pos %||% "bottom"
+    if (leg_pos == "none") {
+      p <- p + theme(legend.position = "none")
+    } else {
+      p <- p + theme(legend.position = leg_pos) +
+        guides(color = guide_legend(ncol = input$matrix_legend_cols %||% 5))
+    }
+
+    p
+  })
+
+  # Render matrix plot
+  output$matrix_plot <- renderPlot({
+    build_matrix_plot()
+  }, res = 96, execOnResize = TRUE)
+
+  # Export matrix plot
+  output$matrix_download <- downloadHandler(
+    filename = function() {
+      paste0(input$matrix_export_filename %||% "appendix_figure",
+             ".", input$matrix_export_fmt %||% "pdf")
+    },
+    content = function(file) {
+      p   <- build_matrix_plot()
+      w   <- input$matrix_export_w %||% 14
+      h   <- input$matrix_export_h %||% 8
+      dpi <- input$matrix_export_dpi %||% 300
+      fmt <- input$matrix_export_fmt %||% "pdf"
+      ggsave(file, plot = p, width = w, height = h, dpi = dpi,
+             device = fmt, bg = "white")
     }
   )
 }
