@@ -1663,9 +1663,11 @@ server <- function(input, output, session) {
                      border = TRUE, ticks_inward = TRUE) +
       theme(
         strip.text = element_text(size = strip_sz, face = "bold",
-                                  margin = margin(4, 4, 4, 4)),
-        strip.background = element_rect(fill = "#f0f0f0", color = "#cccccc"),
-        panel.spacing = unit(0.8, "lines")
+                                  color = "#1a1714",
+                                  margin = margin(5, 5, 5, 5)),
+        strip.background = element_rect(fill = "white", color = "#d4cec4",
+                                        linewidth = 0.4),
+        panel.spacing = unit(1, "lines")
       )
 
     # Labels
