@@ -1126,34 +1126,32 @@ server <- function(input, output, session) {
           if (trend_type == "lm") {
             p <- p + geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
                                  color = pal[2], linetype = "dashed", linewidth = 0.7)
-            # Compute equation for each panel and annotate
+            # Equation only on top panel (margin panel has identical slope/R²)
             if (eq_pos != "none") {
-              for (pnl in levels(plot_df$panel)) {
-                pnl_df <- plot_df[plot_df$panel == pnl, ]
-                if (nrow(pnl_df) >= 3) {
-                  fit <- lm(y ~ x, data = pnl_df)
-                  co <- coef(fit)
-                  r2 <- summary(fit)$r.squared
-                  sign_char <- if (co[2] >= 0) "+" else "\u2013"
-                  eq_label <- sprintf("y = %.3f x %s %.2f\nR\u00b2 = %.4f",
-                                      co[2], sign_char, abs(co[1]), r2)
-                  x_rng <- range(pnl_df$x)
-                  y_rng <- range(pnl_df$y)
-                  eq_x <- if (grepl("l", eq_pos)) x_rng[1] + diff(x_rng) * 0.02
-                          else x_rng[2] - diff(x_rng) * 0.02
-                  eq_y <- if (grepl("t", eq_pos)) y_rng[2] - diff(y_rng) * 0.02
-                          else y_rng[1] + diff(y_rng) * 0.02
-                  eq_hjust <- if (grepl("l", eq_pos)) 0 else 1
-                  eq_vjust <- if (grepl("t", eq_pos)) 1 else 0
-                  ann_df <- data.frame(x = eq_x, y = eq_y, panel = pnl,
-                                       stringsAsFactors = FALSE)
-                  ann_df$panel <- factor(ann_df$panel, levels = levels(plot_df$panel))
-                  p <- p + geom_label(data = ann_df, aes(x = x, y = y),
-                    label = eq_label, hjust = eq_hjust, vjust = eq_vjust,
-                    size = 3.2, color = pal[2], lineheight = 1.2,
-                    fill = alpha("white", 0.92), label.size = 0.25,
-                    label.padding = unit(4, "pt"), inherit.aes = FALSE)
-                }
+              top_df <- plot_df[plot_df$panel == value_label, ]
+              if (nrow(top_df) >= 3) {
+                fit <- lm(y ~ x, data = top_df)
+                co <- coef(fit)
+                r2 <- summary(fit)$r.squared
+                sign_char <- if (co[2] >= 0) "+" else "\u2013"
+                eq_label <- sprintf("y = %.3f x %s %.2f\nR\u00b2 = %.4f",
+                                    co[2], sign_char, abs(co[1]), r2)
+                x_rng <- range(top_df$x)
+                y_rng <- range(top_df$y)
+                eq_x <- if (grepl("l", eq_pos)) x_rng[1] + diff(x_rng) * 0.02
+                        else x_rng[2] - diff(x_rng) * 0.02
+                eq_y <- if (grepl("t", eq_pos)) y_rng[2] - diff(y_rng) * 0.02
+                        else y_rng[1] + diff(y_rng) * 0.02
+                eq_hjust <- if (grepl("l", eq_pos)) 0 else 1
+                eq_vjust <- if (grepl("t", eq_pos)) 1 else 0
+                ann_df <- data.frame(x = eq_x, y = eq_y, panel = value_label,
+                                     stringsAsFactors = FALSE)
+                ann_df$panel <- factor(ann_df$panel, levels = levels(plot_df$panel))
+                p <- p + geom_label(data = ann_df, aes(x = x, y = y),
+                  label = eq_label, hjust = eq_hjust, vjust = eq_vjust,
+                  size = 3.2, color = pal[2], lineheight = 1.2,
+                  fill = alpha("white", 0.92), label.size = 0.25,
+                  label.padding = unit(4, "pt"), inherit.aes = FALSE)
               }
             }
           } else {
@@ -1163,12 +1161,31 @@ server <- function(input, output, session) {
           }
         }
 
-        # Reference line in margin panel (at zero = the reference itself)
-        ref_line_df <- data.frame(
-          yintercept = 0, panel = margin_label, stringsAsFactors = FALSE)
-        ref_line_df$panel <- factor(ref_line_df$panel, levels = levels(plot_df$panel))
-        p <- p + geom_hline(data = ref_line_df, aes(yintercept = yintercept),
-                            linetype = "dashed", color = "#8b3a1e", linewidth = 0.5)
+        # Reference line in margin panel — use annotate to avoid expanding y-axis
+        margin_df <- plot_df[plot_df$panel == margin_label, ]
+        margin_y_rng <- range(margin_df$y, na.rm = TRUE)
+        if (0 >= margin_y_rng[1] - diff(margin_y_rng) * 0.1 &&
+            0 <= margin_y_rng[2] + diff(margin_y_rng) * 0.1) {
+          # Zero line is near the data — show it with geom_hline
+          ref_line_df <- data.frame(
+            yintercept = 0, panel = margin_label, stringsAsFactors = FALSE)
+          ref_line_df$panel <- factor(ref_line_df$panel, levels = levels(plot_df$panel))
+          p <- p + geom_hline(data = ref_line_df, aes(yintercept = yintercept),
+                              linetype = "dashed", color = "#8b3a1e", linewidth = 0.5)
+        } else {
+          # Zero line is far from data — annotate the margin values instead
+          # to avoid compressing the data into a narrow band
+          min_margin <- min(margin_df$y, na.rm = TRUE)
+          min_x <- margin_df$x[which.min(margin_df$y)]
+          margin_note_df <- data.frame(x = min_x, y = min_margin,
+                                       panel = margin_label, stringsAsFactors = FALSE)
+          margin_note_df$panel <- factor(margin_note_df$panel, levels = levels(plot_df$panel))
+          p <- p + geom_label(data = margin_note_df, aes(x = x, y = y),
+            label = sprintf("Min margin: %.1f\u00b0C", min_margin),
+            hjust = 0.5, vjust = 1.5, size = 3, color = "#8b3a1e",
+            fill = alpha("white", 0.92), label.size = 0.25,
+            label.padding = unit(3, "pt"), inherit.aes = FALSE)
+        }
 
         # Labels
         p <- p + labs(x = x_lab, y = NULL, title = t_lab, subtitle = st_lab) +
@@ -1177,7 +1194,11 @@ server <- function(input, output, session) {
                                          margin = margin(b = 8)),
             axis.title    = element_text(size = label_sz),
             axis.text     = element_text(size = font_size),
-            strip.text    = element_text(size = label_sz * 0.9, face = "bold"),
+            strip.background = element_rect(fill = "white", color = "#1a1a1a",
+                                             linewidth = 0.5),
+            strip.text    = element_text(size = label_sz * 0.9, face = "bold",
+                                         color = "#1a1714", margin = margin(t = 4, b = 4)),
+            panel.spacing = unit(12, "pt"),
             legend.position = "none"
           )
 
