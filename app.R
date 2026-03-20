@@ -1086,6 +1086,20 @@ server <- function(input, output, session) {
         if (trend_type == "lm") {
           p <- p + geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
                                color = pal[2], linetype = "dashed", linewidth = 0.7)
+          # Add equation and R² annotation
+          fit <- lm(y ~ x, data = edf)
+          co <- coef(fit)
+          r2 <- summary(fit)$r.squared
+          sign_char <- if (co[2] >= 0) "+" else "\u2013"
+          eq_label <- sprintf("y = %.3f x %s %.2f\nR\u00b2 = %.4f",
+                              co[2], sign_char, abs(co[1]), r2)
+          p <- p + annotate("label",
+            x = min(edf$x) + diff(range(edf$x)) * 0.02,
+            y = max(edf$y) - diff(range(edf$y)) * 0.02,
+            label = eq_label, hjust = 0, vjust = 1,
+            size = 3.2, color = pal[2], lineheight = 1.2,
+            fill = alpha("white", 0.92), label.size = 0.25,
+            label.padding = unit(4, "pt"))
         } else {
           p <- p + geom_smooth(method = "loess", formula = y ~ x, se = FALSE,
                                color = pal[2], linetype = "dashed", linewidth = 0.7,
