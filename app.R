@@ -1065,6 +1065,7 @@ server <- function(input, output, session) {
     # ── Extraction mode plot ───────────────────────────
     if (isTRUE(rv$extraction_mode) && !is.null(rv$extraction_data)) {
       edf <- rv$extraction_data
+      font_size <- input$axis_text_size %||% 10
       pal <- PALETTES[[input$palette]]
       tick_inward <- (input$tick_dir %||% "in") != "out"
 
