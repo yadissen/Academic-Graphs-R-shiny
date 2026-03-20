@@ -1315,7 +1315,7 @@ server <- function(input, output, session) {
         # Override legend keys to show line swatches with correct linetypes
         p <- p + guides(
           color = guide_legend(
-            ncol = input$legend_cols %||% 1,
+            nrow = 1,
             override.aes = list(linewidth = lw + 0.3)
           ),
           linetype = "none"
@@ -1367,7 +1367,7 @@ server <- function(input, output, session) {
 
         p <- p + guides(
           color = guide_legend(
-            ncol = input$legend_cols %||% 1,
+            nrow = 1,
             override.aes = list(linewidth = lw + 0.3)
           )
         )
