@@ -439,6 +439,14 @@ ui <- page_navbar(
                               selected = "tr")
                 )
               ),
+              hr(),
+              checkboxInput("extract_margin", "Show margin from reference", value = FALSE),
+              conditionalPanel("input.extract_margin",
+                numericInput("extract_margin_ref", "Reference value", value = 32, step = 0.1),
+                textInput("extract_margin_ref_label", "Reference name", value = "WAT"),
+                textInput("extract_margin_panel_label", "Margin panel label",
+                          value = "Thermal Margin (\u00b0C)")
+              ),
               actionButton("generate_extraction", "Generate extraction plot",
                            class = "btn-academic w-100", icon = icon("chart-line"))
             )
@@ -1075,56 +1083,163 @@ server <- function(input, output, session) {
       font_size <- input$axis_text_size %||% 10
       pal <- PALETTES[[input$palette]]
       tick_inward <- (input$tick_dir %||% "in") != "out"
-
-      p <- ggplot(edf, aes(x = x, y = y)) +
-        theme_academic(base_size = font_size,
-                       grid = input$grid_lines %||% "none",
-                       border = input$show_border %||% TRUE,
-                       ticks_inward = tick_inward)
-
-      # Scatter points
       mk_size <- input$marker_size %||% 2.8
-      p <- p + geom_point(size = mk_size, color = pal[1],
-                          shape = 21, fill = pal[1], stroke = 0.5)
+      title_sz <- input$title_size %||% 16
+      label_sz <- input$axis_label_size %||% 12
+      x_lab <- parse_label(input$xlabel)
+      y_lab <- parse_label(input$ylabel)
+      t_lab <- parse_label(input$chart_title)
+      st_lab <- if (nchar(input$chart_subtitle %||% "") > 0) input$chart_subtitle else NULL
+      show_margin <- isTRUE(input$extract_margin)
+      trend_on <- isTRUE(input$extract_trend) && nrow(edf) >= 3
+      trend_type <- input$extract_trend_type %||% "lm"
+      eq_pos <- input$extract_eq_pos %||% "tr"
 
-      # Trend line
-      if (isTRUE(input$extract_trend) && nrow(edf) >= 3) {
-        trend_type <- input$extract_trend_type %||% "lm"
-        if (trend_type == "lm") {
-          p <- p + geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
-                               color = pal[2], linetype = "dashed", linewidth = 0.7)
-          # Add equation and R² annotation
-          eq_pos <- input$extract_eq_pos %||% "tr"
-          if (eq_pos != "none") {
-            fit <- lm(y ~ x, data = edf)
-            co <- coef(fit)
-            r2 <- summary(fit)$r.squared
-            sign_char <- if (co[2] >= 0) "+" else "\u2013"
-            eq_label <- sprintf("y = %.3f x %s %.2f\nR\u00b2 = %.4f",
-                                co[2], sign_char, abs(co[1]), r2)
-            x_rng <- range(edf$x)
-            y_rng <- range(edf$y)
-            eq_x <- if (grepl("l", eq_pos)) x_rng[1] + diff(x_rng) * 0.02
-                    else x_rng[2] - diff(x_rng) * 0.02
-            eq_y <- if (grepl("t", eq_pos)) y_rng[2] - diff(y_rng) * 0.02
-                    else y_rng[1] + diff(y_rng) * 0.02
-            eq_hjust <- if (grepl("l", eq_pos)) 0 else 1
-            eq_vjust <- if (grepl("t", eq_pos)) 1 else 0
-            p <- p + annotate("label",
-              x = eq_x, y = eq_y,
-              label = eq_label, hjust = eq_hjust, vjust = eq_vjust,
-              size = 3.2, color = pal[2], lineheight = 1.2,
-              fill = alpha("white", 0.92), label.size = 0.25,
-              label.padding = unit(4, "pt"))
+      # ── Build data: single panel or dual panel ──────
+      if (show_margin) {
+        margin_ref <- input$extract_margin_ref %||% 32
+        margin_label <- input$extract_margin_panel_label %||% "Margin"
+        ref_name <- input$extract_margin_ref_label %||% "Ref"
+        value_label <- as.character(y_lab)
+
+        plot_df <- rbind(
+          data.frame(x = edf$x, y = edf$y,
+                     panel = value_label, stringsAsFactors = FALSE),
+          data.frame(x = edf$x, y = edf$y - margin_ref,
+                     panel = margin_label, stringsAsFactors = FALSE)
+        )
+        plot_df$panel <- factor(plot_df$panel, levels = c(value_label, margin_label))
+
+        p <- ggplot(plot_df, aes(x = x, y = y)) +
+          facet_wrap(~ panel, ncol = 1, scales = "free_y") +
+          theme_academic(base_size = font_size,
+                         grid = input$grid_lines %||% "none",
+                         border = input$show_border %||% TRUE,
+                         ticks_inward = tick_inward)
+
+        # Points
+        p <- p + geom_point(size = mk_size, color = pal[1],
+                            shape = 21, fill = pal[1], stroke = 0.5)
+
+        # Trend lines (per-facet, geom_smooth handles facets automatically)
+        if (trend_on) {
+          if (trend_type == "lm") {
+            p <- p + geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
+                                 color = pal[2], linetype = "dashed", linewidth = 0.7)
+            # Compute equation for each panel and annotate
+            if (eq_pos != "none") {
+              for (pnl in levels(plot_df$panel)) {
+                pnl_df <- plot_df[plot_df$panel == pnl, ]
+                if (nrow(pnl_df) >= 3) {
+                  fit <- lm(y ~ x, data = pnl_df)
+                  co <- coef(fit)
+                  r2 <- summary(fit)$r.squared
+                  sign_char <- if (co[2] >= 0) "+" else "\u2013"
+                  eq_label <- sprintf("y = %.3f x %s %.2f\nR\u00b2 = %.4f",
+                                      co[2], sign_char, abs(co[1]), r2)
+                  x_rng <- range(pnl_df$x)
+                  y_rng <- range(pnl_df$y)
+                  eq_x <- if (grepl("l", eq_pos)) x_rng[1] + diff(x_rng) * 0.02
+                          else x_rng[2] - diff(x_rng) * 0.02
+                  eq_y <- if (grepl("t", eq_pos)) y_rng[2] - diff(y_rng) * 0.02
+                          else y_rng[1] + diff(y_rng) * 0.02
+                  eq_hjust <- if (grepl("l", eq_pos)) 0 else 1
+                  eq_vjust <- if (grepl("t", eq_pos)) 1 else 0
+                  ann_df <- data.frame(x = eq_x, y = eq_y, panel = pnl,
+                                       stringsAsFactors = FALSE)
+                  ann_df$panel <- factor(ann_df$panel, levels = levels(plot_df$panel))
+                  p <- p + geom_label(data = ann_df, aes(x = x, y = y),
+                    label = eq_label, hjust = eq_hjust, vjust = eq_vjust,
+                    size = 3.2, color = pal[2], lineheight = 1.2,
+                    fill = alpha("white", 0.92), label.size = 0.25,
+                    label.padding = unit(4, "pt"), inherit.aes = FALSE)
+                }
+              }
+            }
+          } else {
+            p <- p + geom_smooth(method = "loess", formula = y ~ x, se = FALSE,
+                                 color = pal[2], linetype = "dashed", linewidth = 0.7,
+                                 span = 0.75)
           }
-        } else {
-          p <- p + geom_smooth(method = "loess", formula = y ~ x, se = FALSE,
-                               color = pal[2], linetype = "dashed", linewidth = 0.7,
-                               span = 0.75)
         }
+
+        # Reference line in margin panel (at zero = the reference itself)
+        ref_line_df <- data.frame(
+          yintercept = 0, panel = margin_label, stringsAsFactors = FALSE)
+        ref_line_df$panel <- factor(ref_line_df$panel, levels = levels(plot_df$panel))
+        p <- p + geom_hline(data = ref_line_df, aes(yintercept = yintercept),
+                            linetype = "dashed", color = "#8b3a1e", linewidth = 0.5)
+
+        # Labels
+        p <- p + labs(x = x_lab, y = NULL, title = t_lab, subtitle = st_lab) +
+          theme(
+            plot.title    = element_text(size = title_sz, face = "bold", hjust = 0.5,
+                                         margin = margin(b = 8)),
+            axis.title    = element_text(size = label_sz),
+            axis.text     = element_text(size = font_size),
+            strip.text    = element_text(size = label_sz * 0.9, face = "bold"),
+            legend.position = "none"
+          )
+
+      } else {
+        # ── Single panel extraction plot ──────────────
+        p <- ggplot(edf, aes(x = x, y = y)) +
+          theme_academic(base_size = font_size,
+                         grid = input$grid_lines %||% "none",
+                         border = input$show_border %||% TRUE,
+                         ticks_inward = tick_inward)
+
+        # Scatter points
+        p <- p + geom_point(size = mk_size, color = pal[1],
+                            shape = 21, fill = pal[1], stroke = 0.5)
+
+        # Trend line
+        if (trend_on) {
+          if (trend_type == "lm") {
+            p <- p + geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
+                                 color = pal[2], linetype = "dashed", linewidth = 0.7)
+            # Equation annotation
+            if (eq_pos != "none") {
+              fit <- lm(y ~ x, data = edf)
+              co <- coef(fit)
+              r2 <- summary(fit)$r.squared
+              sign_char <- if (co[2] >= 0) "+" else "\u2013"
+              eq_label <- sprintf("y = %.3f x %s %.2f\nR\u00b2 = %.4f",
+                                  co[2], sign_char, abs(co[1]), r2)
+              x_rng <- range(edf$x)
+              y_rng <- range(edf$y)
+              eq_x <- if (grepl("l", eq_pos)) x_rng[1] + diff(x_rng) * 0.02
+                      else x_rng[2] - diff(x_rng) * 0.02
+              eq_y <- if (grepl("t", eq_pos)) y_rng[2] - diff(y_rng) * 0.02
+                      else y_rng[1] + diff(y_rng) * 0.02
+              eq_hjust <- if (grepl("l", eq_pos)) 0 else 1
+              eq_vjust <- if (grepl("t", eq_pos)) 1 else 0
+              p <- p + annotate("label",
+                x = eq_x, y = eq_y,
+                label = eq_label, hjust = eq_hjust, vjust = eq_vjust,
+                size = 3.2, color = pal[2], lineheight = 1.2,
+                fill = alpha("white", 0.92), label.size = 0.25,
+                label.padding = unit(4, "pt"))
+            }
+          } else {
+            p <- p + geom_smooth(method = "loess", formula = y ~ x, se = FALSE,
+                                 color = pal[2], linetype = "dashed", linewidth = 0.7,
+                                 span = 0.75)
+          }
+        }
+
+        # Labels
+        p <- p + labs(x = x_lab, y = y_lab, title = t_lab, subtitle = st_lab) +
+          theme(
+            plot.title = element_text(size = title_sz, face = "bold", hjust = 0.5,
+                                       margin = margin(b = 8)),
+            axis.title = element_text(size = label_sz),
+            axis.text  = element_text(size = font_size),
+            legend.position = "none"
+          )
       }
 
-      # Reference lines (reuse existing ref_lines)
+      # Reference lines (shared for both modes)
       for (ref in rv$ref_lines) {
         if (ref$axis == "x") {
           p <- p + geom_vline(xintercept = ref$value, linetype = ref$linetype,
@@ -1142,23 +1257,6 @@ server <- function(input, output, session) {
             vjust = if (ref$axis == "y") -0.5 else 1.5)
         }
       }
-
-      # Labels
-      title_sz <- input$title_size %||% 16
-      label_sz <- input$axis_label_size %||% 12
-      x_lab <- parse_label(input$xlabel)
-      y_lab <- parse_label(input$ylabel)
-      t_lab <- parse_label(input$chart_title)
-      st_lab <- if (nchar(input$chart_subtitle %||% "") > 0) input$chart_subtitle else NULL
-
-      p <- p + labs(x = x_lab, y = y_lab, title = t_lab, subtitle = st_lab) +
-        theme(
-          plot.title = element_text(size = title_sz, face = "bold", hjust = 0.5,
-                                     margin = margin(b = 8)),
-          axis.title = element_text(size = label_sz),
-          axis.text  = element_text(size = font_size),
-          legend.position = "none"
-        )
 
       # Axis ranges
       x_lim <- c(if (!is.na(input$xmin)) input$xmin else NA,
