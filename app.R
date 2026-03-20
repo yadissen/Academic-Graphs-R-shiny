@@ -316,8 +316,8 @@ ui <- page_navbar(
             helpText("Tip: _{...} = subscript, ^{...} = superscript",
                      style = "font-size:0.62rem;color:#999;font-style:italic;"),
             numericInput("title_size", "Title font size", value = 16, min = 8, max = 32, step = 1),
-            numericInput("axis_label_size", "Axis label size", value = 14, min = 8, max = 28, step = 1),
-            numericInput("axis_text_size", "Tick label size", value = 12, min = 6, max = 24, step = 1)
+            numericInput("axis_label_size", "Axis label size", value = 12, min = 8, max = 28, step = 1),
+            numericInput("axis_text_size", "Tick label size", value = 10, min = 6, max = 24, step = 1)
           ),
 
           # ── APPEARANCE ─────────────────────────────────────
@@ -407,6 +407,49 @@ ui <- page_navbar(
                         selected = "ur"),
             actionButton("add_ann", "Add annotation", class = "btn-ghost w-100", icon = icon("plus")),
             uiOutput("annotations_list")
+          ),
+
+          # ── TREND EXTRACTION (for Figure 5-type plots) ────
+          accordion_panel("Trend Extraction", icon = icon("crosshairs"),
+            helpText("Extract one value per series (e.g. inlet pressure) and plot against a parameter (e.g. water cut).",
+                     style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
+            checkboxInput("extraction_enable", "Enable extraction mode", value = FALSE),
+            conditionalPanel("input.extraction_enable",
+              selectInput("extract_method", "Extract value",
+                          choices = c("Inlet (first value)" = "first",
+                                      "Outlet (last value)" = "last",
+                                      "Minimum" = "min",
+                                      "Maximum" = "max",
+                                      "Mean" = "mean")),
+              textInput("extract_x_label", "X parameter label", value = "Water Cut [%]"),
+              textInput("extract_y_label", "Y parameter label", value = "Inlet Pressure [bara]"),
+              uiOutput("extract_x_inputs"),
+              hr(),
+              checkboxInput("extract_trend", "Show trend line", value = TRUE),
+              conditionalPanel("input.extract_trend",
+                selectInput("extract_trend_type", "Trend type",
+                            choices = c("Linear" = "lm",
+                                        "LOESS smooth" = "loess"),
+                            selected = "lm"),
+                conditionalPanel("input.extract_trend_type == 'lm'",
+                  selectInput("extract_eq_pos", "Equation position",
+                              choices = c("Top Left" = "tl", "Top Right" = "tr",
+                                          "Bottom Left" = "bl", "Bottom Right" = "br",
+                                          "Hidden" = "none"),
+                              selected = "tr")
+                )
+              ),
+              hr(),
+              checkboxInput("extract_margin", "Show margin from reference", value = FALSE),
+              conditionalPanel("input.extract_margin",
+                numericInput("extract_margin_ref", "Reference value", value = 32, step = 0.1),
+                textInput("extract_margin_ref_label", "Reference name", value = "WAT"),
+                textInput("extract_margin_panel_label", "Margin panel label",
+                          value = "Thermal Margin (\u00b0C)")
+              ),
+              actionButton("generate_extraction", "Generate extraction plot",
+                           class = "btn-academic w-100", icon = icon("chart-line"))
+            )
           ),
 
           # ── LEGEND ─────────────────────────────────────────
@@ -541,7 +584,10 @@ server <- function(input, output, session) {
     annotations    = list(),
     top_anns       = list(),   # manual top-axis annotations
     is_flow_regime = FALSE,
-    plot_counter   = 0         # force refresh
+    plot_counter   = 0,        # force refresh
+    extraction_mode = FALSE,
+    extraction_data = NULL,
+    series_panel_ver = 0L      # increment to re-render series panel (structural changes only)
   )
 
   # ── Journal preset ─────────────────────────────────────────────────────────
@@ -688,6 +734,7 @@ server <- function(input, output, session) {
     }
 
     rv$plot_counter <- rv$plot_counter + 1
+    rv$series_panel_ver <- rv$series_panel_ver + 1L
     showNotification(paste0("\u2713 ", length(series_list), " series loaded"), type = "message")
   })
 
@@ -706,7 +753,9 @@ server <- function(input, output, session) {
   #  SERIES PANEL — editable names, colours, visibility
   # ══════════════════════════════════════════════════════
   output$series_panel <- renderUI({
-    series <- rv$series_data
+    # Depend only on structural changes (load, visibility toggle), NOT label edits
+    rv$series_panel_ver
+    series <- isolate(rv$series_data)
     if (length(series) == 0)
       return(tags$p("No series loaded yet", style = "font-size:0.78rem;color:#999;font-style:italic;"))
 
@@ -776,6 +825,7 @@ server <- function(input, output, session) {
         # Visibility toggle
         observeEvent(input[[paste0("toggle_vis_", i)]], {
           rv$series_data[[i]]$visible <- !rv$series_data[[i]]$visible
+          rv$series_panel_ver <- rv$series_panel_ver + 1L
         }, ignoreInit = TRUE)
       })
       rv_obs$n_series_obs <- n
@@ -784,9 +834,11 @@ server <- function(input, output, session) {
 
   observeEvent(input$show_all, {
     for (i in seq_along(rv$series_data)) rv$series_data[[i]]$visible <- TRUE
+    rv$series_panel_ver <- rv$series_panel_ver + 1L
   })
   observeEvent(input$hide_all, {
     for (i in seq_along(rv$series_data)) rv$series_data[[i]]$visible <- FALSE
+    rv$series_panel_ver <- rv$series_panel_ver + 1L
   })
 
   # ══════════════════════════════════════════════════════
@@ -876,6 +928,82 @@ server <- function(input, output, session) {
   })
 
   # ══════════════════════════════════════════════════════
+  #  TREND EXTRACTION
+  # ══════════════════════════════════════════════════════
+
+  # Dynamic x-value inputs for each loaded series
+  output$extract_x_inputs <- renderUI({
+    series <- rv$series_data
+    if (length(series) == 0)
+      return(tags$p("Load data first", style = "font-size:0.75rem;color:#999;font-style:italic;"))
+    tagList(
+      tags$p("X parameter value for each series:",
+             style = "font-size:0.68rem;color:#7a7060;font-weight:600;margin-bottom:4px;"),
+      lapply(seq_along(series), function(i) {
+        div(style = "display:flex;align-items:center;gap:6px;margin-bottom:3px;",
+          tags$span(series[[i]]$label,
+                    style = "font-size:0.72rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"),
+          numericInput(paste0("extract_x_", i), NULL, value = i * 10,
+                       step = 1, width = "90px")
+        )
+      })
+    )
+  })
+
+  # Generate extraction plot
+  observeEvent(input$generate_extraction, {
+    series <- rv$series_data
+    req(length(series) > 0)
+
+    method <- input$extract_method %||% "first"
+    x_vals <- numeric(length(series))
+    y_vals <- numeric(length(series))
+    labels <- character(length(series))
+
+    for (i in seq_along(series)) {
+      s <- series[[i]]
+      x_vals[i] <- input[[paste0("extract_x_", i)]] %||% (i * 10)
+      labels[i] <- s$label
+
+      ord <- order(s$x)
+      y_sorted <- s$y[ord]
+
+      if (method == "first") y_vals[i] <- y_sorted[1]
+      else if (method == "last") y_vals[i] <- y_sorted[length(y_sorted)]
+      else if (method == "min") y_vals[i] <- min(s$y, na.rm = TRUE)
+      else if (method == "max") y_vals[i] <- max(s$y, na.rm = TRUE)
+      else y_vals[i] <- mean(s$y, na.rm = TRUE)
+    }
+
+    rv$extraction_data <- data.frame(
+      x = x_vals, y = y_vals, label = labels, stringsAsFactors = FALSE
+    )
+    rv$extraction_mode <- TRUE
+
+    # Update axis labels
+    updateTextInput(session, "xlabel", value = input$extract_x_label %||% "Water Cut [%]")
+    updateTextInput(session, "ylabel", value = input$extract_y_label %||% "Inlet Pressure [bara]")
+    updateTextInput(session, "chart_title", value = paste0(
+      switch(method, first = "Inlet", last = "Outlet", min = "Minimum",
+             max = "Maximum", mean = "Mean"),
+      " Value Trend"
+    ))
+    rv$plot_counter <- rv$plot_counter + 1
+    showNotification(
+      paste0("\u2713 Extracted ", length(series), " points for trend plot"),
+      type = "message", duration = 4
+    )
+  })
+
+  # Disable extraction mode when checkbox is unchecked
+  observeEvent(input$extraction_enable, {
+    if (!isTRUE(input$extraction_enable)) {
+      rv$extraction_mode <- FALSE
+      rv$plot_counter <- rv$plot_counter + 1
+    }
+  })
+
+  # ══════════════════════════════════════════════════════
   #  TOP AXIS ANNOTATIONS
   # ══════════════════════════════════════════════════════
   output$top_ann_col_selectors <- renderUI({
@@ -949,6 +1077,225 @@ server <- function(input, output, session) {
       return(p)
     }
 
+    # ── Extraction mode plot ───────────────────────────
+    if (isTRUE(rv$extraction_mode) && !is.null(rv$extraction_data)) {
+      edf <- rv$extraction_data
+      font_size <- input$axis_text_size %||% 10
+      pal <- PALETTES[[input$palette]]
+      tick_inward <- (input$tick_dir %||% "in") != "out"
+      mk_size <- input$marker_size %||% 2.8
+      title_sz <- input$title_size %||% 16
+      label_sz <- input$axis_label_size %||% 12
+      x_lab <- parse_label(input$xlabel)
+      y_lab <- parse_label(input$ylabel)
+      t_lab <- parse_label(input$chart_title)
+      st_lab <- if (nchar(input$chart_subtitle %||% "") > 0) input$chart_subtitle else NULL
+      show_margin <- isTRUE(input$extract_margin)
+      trend_on <- isTRUE(input$extract_trend) && nrow(edf) >= 3
+      trend_type <- input$extract_trend_type %||% "lm"
+      eq_pos <- input$extract_eq_pos %||% "tr"
+
+      # ── Build data: single panel or dual panel ──────
+      if (show_margin) {
+        margin_ref <- input$extract_margin_ref %||% 32
+        margin_label <- input$extract_margin_panel_label %||% "Margin"
+        ref_name <- input$extract_margin_ref_label %||% "Ref"
+        value_label <- as.character(y_lab)
+
+        plot_df <- rbind(
+          data.frame(x = edf$x, y = edf$y,
+                     panel = value_label, stringsAsFactors = FALSE),
+          data.frame(x = edf$x, y = edf$y - margin_ref,
+                     panel = margin_label, stringsAsFactors = FALSE)
+        )
+        plot_df$panel <- factor(plot_df$panel, levels = c(value_label, margin_label))
+
+        p <- ggplot(plot_df, aes(x = x, y = y)) +
+          facet_wrap(~ panel, ncol = 1, scales = "free_y") +
+          theme_academic(base_size = font_size,
+                         grid = input$grid_lines %||% "none",
+                         border = input$show_border %||% TRUE,
+                         ticks_inward = tick_inward)
+
+        # Points
+        p <- p + geom_point(size = mk_size, color = pal[1],
+                            shape = 21, fill = pal[1], stroke = 0.5)
+
+        # Trend lines (per-facet, geom_smooth handles facets automatically)
+        if (trend_on) {
+          if (trend_type == "lm") {
+            p <- p + geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
+                                 color = pal[2], linetype = "dashed", linewidth = 0.7)
+            # Equation only on top panel (margin panel has identical slope/R²)
+            if (eq_pos != "none") {
+              top_df <- plot_df[plot_df$panel == value_label, ]
+              if (nrow(top_df) >= 3) {
+                fit <- lm(y ~ x, data = top_df)
+                co <- coef(fit)
+                r2 <- summary(fit)$r.squared
+                sign_char <- if (co[2] >= 0) "+" else "\u2013"
+                eq_label <- sprintf("y = %.3f x %s %.2f\nR\u00b2 = %.4f",
+                                    co[2], sign_char, abs(co[1]), r2)
+                x_rng <- range(top_df$x)
+                y_rng <- range(top_df$y)
+                eq_x <- if (grepl("l", eq_pos)) x_rng[1] + diff(x_rng) * 0.02
+                        else x_rng[2] - diff(x_rng) * 0.02
+                eq_y <- if (grepl("t", eq_pos)) y_rng[2] - diff(y_rng) * 0.02
+                        else y_rng[1] + diff(y_rng) * 0.02
+                eq_hjust <- if (grepl("l", eq_pos)) 0 else 1
+                eq_vjust <- if (grepl("t", eq_pos)) 1 else 0
+                ann_df <- data.frame(x = eq_x, y = eq_y, panel = value_label,
+                                     stringsAsFactors = FALSE)
+                ann_df$panel <- factor(ann_df$panel, levels = levels(plot_df$panel))
+                p <- p + geom_label(data = ann_df, aes(x = x, y = y),
+                  label = eq_label, hjust = eq_hjust, vjust = eq_vjust,
+                  size = 3.2, color = pal[2], lineheight = 1.2,
+                  fill = alpha("white", 0.92), label.size = 0.25,
+                  label.padding = unit(4, "pt"), inherit.aes = FALSE)
+              }
+            }
+          } else {
+            p <- p + geom_smooth(method = "loess", formula = y ~ x, se = FALSE,
+                                 color = pal[2], linetype = "dashed", linewidth = 0.7,
+                                 span = 0.75)
+          }
+        }
+
+        # Reference line in margin panel — use annotate to avoid expanding y-axis
+        margin_df <- plot_df[plot_df$panel == margin_label, ]
+        margin_y_rng <- range(margin_df$y, na.rm = TRUE)
+        if (0 >= margin_y_rng[1] - diff(margin_y_rng) * 0.1 &&
+            0 <= margin_y_rng[2] + diff(margin_y_rng) * 0.1) {
+          # Zero line is near the data — show it with geom_hline
+          ref_line_df <- data.frame(
+            yintercept = 0, panel = margin_label, stringsAsFactors = FALSE)
+          ref_line_df$panel <- factor(ref_line_df$panel, levels = levels(plot_df$panel))
+          p <- p + geom_hline(data = ref_line_df, aes(yintercept = yintercept),
+                              linetype = "dashed", color = "#8b3a1e", linewidth = 0.5)
+        } else {
+          # Zero line is far from data — annotate the margin values instead
+          # to avoid compressing the data into a narrow band
+          min_margin <- min(margin_df$y, na.rm = TRUE)
+          min_x <- margin_df$x[which.min(margin_df$y)]
+          margin_note_df <- data.frame(x = min_x, y = min_margin,
+                                       panel = margin_label, stringsAsFactors = FALSE)
+          margin_note_df$panel <- factor(margin_note_df$panel, levels = levels(plot_df$panel))
+          p <- p + geom_label(data = margin_note_df, aes(x = x, y = y),
+            label = sprintf("Min margin: %.1f\u00b0C", min_margin),
+            hjust = 0.5, vjust = 1.5, size = 3, color = "#8b3a1e",
+            fill = alpha("white", 0.92), label.size = 0.25,
+            label.padding = unit(3, "pt"), inherit.aes = FALSE)
+        }
+
+        # Labels
+        p <- p + labs(x = x_lab, y = NULL, title = t_lab, subtitle = st_lab) +
+          theme(
+            plot.title    = element_text(size = title_sz, face = "bold", hjust = 0.5,
+                                         margin = margin(b = 8)),
+            axis.title    = element_text(size = label_sz),
+            axis.text     = element_text(size = font_size),
+            strip.background = element_rect(fill = "white", color = "#1a1a1a",
+                                             linewidth = 0.5),
+            strip.text    = element_text(size = label_sz * 0.9, face = "bold",
+                                         color = "#1a1714", margin = margin(t = 4, b = 4)),
+            panel.spacing = unit(12, "pt"),
+            legend.position = "none"
+          )
+
+      } else {
+        # ── Single panel extraction plot ──────────────
+        p <- ggplot(edf, aes(x = x, y = y)) +
+          theme_academic(base_size = font_size,
+                         grid = input$grid_lines %||% "none",
+                         border = input$show_border %||% TRUE,
+                         ticks_inward = tick_inward)
+
+        # Scatter points
+        p <- p + geom_point(size = mk_size, color = pal[1],
+                            shape = 21, fill = pal[1], stroke = 0.5)
+
+        # Trend line
+        if (trend_on) {
+          if (trend_type == "lm") {
+            p <- p + geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
+                                 color = pal[2], linetype = "dashed", linewidth = 0.7)
+            # Equation annotation
+            if (eq_pos != "none") {
+              fit <- lm(y ~ x, data = edf)
+              co <- coef(fit)
+              r2 <- summary(fit)$r.squared
+              sign_char <- if (co[2] >= 0) "+" else "\u2013"
+              eq_label <- sprintf("y = %.3f x %s %.2f\nR\u00b2 = %.4f",
+                                  co[2], sign_char, abs(co[1]), r2)
+              x_rng <- range(edf$x)
+              y_rng <- range(edf$y)
+              eq_x <- if (grepl("l", eq_pos)) x_rng[1] + diff(x_rng) * 0.02
+                      else x_rng[2] - diff(x_rng) * 0.02
+              eq_y <- if (grepl("t", eq_pos)) y_rng[2] - diff(y_rng) * 0.02
+                      else y_rng[1] + diff(y_rng) * 0.02
+              eq_hjust <- if (grepl("l", eq_pos)) 0 else 1
+              eq_vjust <- if (grepl("t", eq_pos)) 1 else 0
+              p <- p + annotate("label",
+                x = eq_x, y = eq_y,
+                label = eq_label, hjust = eq_hjust, vjust = eq_vjust,
+                size = 3.2, color = pal[2], lineheight = 1.2,
+                fill = alpha("white", 0.92), label.size = 0.25,
+                label.padding = unit(4, "pt"))
+            }
+          } else {
+            p <- p + geom_smooth(method = "loess", formula = y ~ x, se = FALSE,
+                                 color = pal[2], linetype = "dashed", linewidth = 0.7,
+                                 span = 0.75)
+          }
+        }
+
+        # Labels
+        p <- p + labs(x = x_lab, y = y_lab, title = t_lab, subtitle = st_lab) +
+          theme(
+            plot.title = element_text(size = title_sz, face = "bold", hjust = 0.5,
+                                       margin = margin(b = 8)),
+            axis.title = element_text(size = label_sz),
+            axis.text  = element_text(size = font_size),
+            legend.position = "none"
+          )
+      }
+
+      # Reference lines (shared for both modes)
+      for (ref in rv$ref_lines) {
+        if (ref$axis == "x") {
+          p <- p + geom_vline(xintercept = ref$value, linetype = ref$linetype,
+                              color = ref$color, linewidth = 0.6)
+        } else {
+          p <- p + geom_hline(yintercept = ref$value, linetype = ref$linetype,
+                              color = ref$color, linewidth = 0.6)
+        }
+        if (nchar(ref$label) > 0) {
+          p <- p + annotate("text",
+            x = if (ref$axis == "x") ref$value else -Inf,
+            y = if (ref$axis == "y") ref$value else Inf,
+            label = ref$label, color = ref$color, size = 3.2,
+            hjust = if (ref$axis == "x") -0.1 else -0.05,
+            vjust = if (ref$axis == "y") -0.5 else 1.5)
+        }
+      }
+
+      # Axis ranges
+      x_lim <- c(if (!is.na(input$xmin)) input$xmin else NA,
+                 if (!is.na(input$xmax)) input$xmax else NA)
+      y_lim <- c(if (!is.na(input$ymin)) input$ymin else NA,
+                 if (!is.na(input$ymax)) input$ymax else NA)
+      if (!all(is.na(x_lim)))
+        p <- p + scale_x_continuous(limits = x_lim, expand = expansion(mult = 0.05))
+      else
+        p <- p + scale_x_continuous(expand = expansion(mult = 0.05))
+      if (!all(is.na(y_lim)))
+        p <- p + scale_y_continuous(limits = y_lim, expand = expansion(mult = 0.05))
+      else
+        p <- p + scale_y_continuous(expand = expansion(mult = 0.05))
+
+      return(p)
+    }
+
     # ── Determine Y2 series ─────────────────────────────
     y2_labels <- if (input$y2_enable && !is.null(input$y2_series)) input$y2_series else character(0)
 
@@ -969,7 +1316,7 @@ server <- function(input, output, session) {
     )
 
     # ── Base plot ───────────────────────────────────────
-    font_size <- input$axis_text_size %||% 12
+    font_size <- input$axis_text_size %||% 10
     tick_inward <- (input$tick_dir %||% "in") != "out"
     p <- ggplot(plot_df, aes(x = x, y = y, color = series, shape = series)) +
       theme_academic(base_size = font_size,
@@ -1096,10 +1443,10 @@ server <- function(input, output, session) {
                           aes(x = x, y = y, color = series, shape = series, fill = series),
                           size = mk_size, stroke = 0.5)
     } else {
-      # No markers — still need a mapped layer for legend
-      p <- p + geom_point(data = plot_df,
-                          aes(x = x, y = y, color = series),
-                          alpha = 0, size = 0, show.legend = TRUE)
+      # No markers — use invisible line layer so legend shows colored line swatches
+      p <- p + geom_line(data = plot_df,
+                         aes(x = x, y = y, color = series),
+                         linewidth = 0, alpha = 0, show.legend = TRUE)
     }
 
     # ── Annotations ─────────────────────────────────────
@@ -1159,6 +1506,8 @@ server <- function(input, output, session) {
     if (mk_mode == "none") {
       legend_overrides$shape <- NA
       legend_overrides$size <- 0
+      legend_overrides$alpha <- 1
+      legend_overrides$linewidth <- lw
     }
 
     p <- p + guides(
@@ -1171,7 +1520,7 @@ server <- function(input, output, session) {
 
     # ── Labels ──────────────────────────────────────────
     title_sz <- input$title_size %||% 16
-    label_sz <- input$axis_label_size %||% 14
+    label_sz <- input$axis_label_size %||% 12
     leg_sz   <- input$legend_size %||% 10
 
     x_lab <- parse_label(input$xlabel)
