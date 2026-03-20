@@ -1664,9 +1664,8 @@ server <- function(input, output, session) {
       theme(
         strip.text = element_text(size = strip_sz, face = "bold",
                                   color = "#1a1714",
-                                  margin = margin(5, 5, 5, 5)),
-        strip.background = element_rect(fill = "white", color = "#d4cec4",
-                                        linewidth = 0.4),
+                                  margin = margin(4, 0, 4, 0)),
+        strip.background = element_blank(),
         panel.spacing = unit(1, "lines")
       )
 
