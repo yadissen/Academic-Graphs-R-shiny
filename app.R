@@ -410,7 +410,7 @@ ui <- page_navbar(
           ),
 
           # ── TREND EXTRACTION (for Figure 5-type plots) ────
-          accordion_panel("Trend Extraction", icon = icon("chart-scatter-3d"),
+          accordion_panel("Trend Extraction", icon = icon("crosshairs"),
             helpText("Extract one value per series (e.g. inlet pressure) and plot against a parameter (e.g. water cut).",
                      style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
             checkboxInput("extraction_enable", "Enable extraction mode", value = FALSE),
