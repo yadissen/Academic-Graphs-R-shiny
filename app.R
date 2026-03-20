@@ -571,7 +571,8 @@ server <- function(input, output, session) {
     is_flow_regime = FALSE,
     plot_counter   = 0,        # force refresh
     extraction_mode = FALSE,
-    extraction_data = NULL
+    extraction_data = NULL,
+    series_panel_ver = 0L      # increment to re-render series panel (structural changes only)
   )
 
   # ── Journal preset ─────────────────────────────────────────────────────────
@@ -718,6 +719,7 @@ server <- function(input, output, session) {
     }
 
     rv$plot_counter <- rv$plot_counter + 1
+    rv$series_panel_ver <- rv$series_panel_ver + 1L
     showNotification(paste0("\u2713 ", length(series_list), " series loaded"), type = "message")
   })
 
@@ -736,7 +738,9 @@ server <- function(input, output, session) {
   #  SERIES PANEL — editable names, colours, visibility
   # ══════════════════════════════════════════════════════
   output$series_panel <- renderUI({
-    series <- rv$series_data
+    # Depend only on structural changes (load, visibility toggle), NOT label edits
+    rv$series_panel_ver
+    series <- isolate(rv$series_data)
     if (length(series) == 0)
       return(tags$p("No series loaded yet", style = "font-size:0.78rem;color:#999;font-style:italic;"))
 
@@ -806,6 +810,7 @@ server <- function(input, output, session) {
         # Visibility toggle
         observeEvent(input[[paste0("toggle_vis_", i)]], {
           rv$series_data[[i]]$visible <- !rv$series_data[[i]]$visible
+          rv$series_panel_ver <- rv$series_panel_ver + 1L
         }, ignoreInit = TRUE)
       })
       rv_obs$n_series_obs <- n
@@ -814,9 +819,11 @@ server <- function(input, output, session) {
 
   observeEvent(input$show_all, {
     for (i in seq_along(rv$series_data)) rv$series_data[[i]]$visible <- TRUE
+    rv$series_panel_ver <- rv$series_panel_ver + 1L
   })
   observeEvent(input$hide_all, {
     for (i in seq_along(rv$series_data)) rv$series_data[[i]]$visible <- FALSE
+    rv$series_panel_ver <- rv$series_panel_ver + 1L
   })
 
   # ══════════════════════════════════════════════════════
@@ -1285,10 +1292,10 @@ server <- function(input, output, session) {
                           aes(x = x, y = y, color = series, shape = series, fill = series),
                           size = mk_size, stroke = 0.5)
     } else {
-      # No markers — still need a mapped layer for legend
-      p <- p + geom_point(data = plot_df,
-                          aes(x = x, y = y, color = series),
-                          alpha = 0, size = 0, show.legend = TRUE)
+      # No markers — use invisible line layer so legend shows colored line swatches
+      p <- p + geom_line(data = plot_df,
+                         aes(x = x, y = y, color = series),
+                         linewidth = 0, alpha = 0, show.legend = TRUE)
     }
 
     # ── Annotations ─────────────────────────────────────
@@ -1348,6 +1355,8 @@ server <- function(input, output, session) {
     if (mk_mode == "none") {
       legend_overrides$shape <- NA
       legend_overrides$size <- 0
+      legend_overrides$alpha <- 1
+      legend_overrides$linewidth <- lw
     }
 
     p <- p + guides(
