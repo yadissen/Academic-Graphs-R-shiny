@@ -1168,14 +1168,14 @@ server <- function(input, output, session) {
         if (!is.null(ul_raw)) {
           ul_df <- ul_raw
           ul_df$variable <- "Liquid Velocity (UL)"
-          ul_df$metric <- "Velocity [m/s]"
+          ul_df$metric <- "Velocity (m/s)"
           ul_df$panel <- labels[i]
           all_data[[length(all_data) + 1]] <- ul_df
         }
         if (!is.null(ug_raw)) {
           ug_df <- ug_raw
           ug_df$variable <- "Gas Velocity (UG)"
-          ug_df$metric <- "Velocity [m/s]"
+          ug_df$metric <- "Velocity (m/s)"
           ug_df$panel <- labels[i]
           all_data[[length(all_data) + 1]] <- ug_df
         }
@@ -1190,7 +1190,7 @@ server <- function(input, output, session) {
             x = merged$x,
             y = merged$y_ug / merged$y_ul,
             variable = "Slip Ratio (UG/UL)",
-            metric   = "Slip Ratio [-]",
+            metric   = "Slip Ratio (-)",
             panel    = labels[i],
             stringsAsFactors = FALSE
           )
@@ -1200,7 +1200,7 @@ server <- function(input, output, session) {
 
       plot_df <- do.call(rbind, all_data)
       plot_df$panel  <- factor(plot_df$panel,  levels = labels)
-      plot_df$metric <- factor(plot_df$metric, levels = c("Velocity [m/s]", "Slip Ratio [-]"))
+      plot_df$metric <- factor(plot_df$metric, levels = c("Velocity (m/s)", "Slip Ratio (-)"))
 
       rv$multi_panel_data <- plot_df
       rv$multi_panel_type <- "velocity"
