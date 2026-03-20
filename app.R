@@ -458,22 +458,33 @@ ui <- page_navbar(
                      style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
             selectInput("multi_plot_type", "Plot type",
                         choices = c("Liquid Holdup Profiles" = "holdup",
-                                    "Velocity & Slip Ratio" = "velocity")),
-            tags$p("Select 3 cases for the 3 panels:",
-                   style = "font-size:0.68rem;color:#7a7060;font-weight:600;margin-bottom:4px;"),
-            fluidRow(
-              column(4,
-                numericInput("mp_case1", "Case #", value = 1, min = 1, max = 10, step = 1),
-                textInput("mp_label1", "Label", value = "Year 1")
-              ),
-              column(4,
-                numericInput("mp_case2", "Case #", value = 5, min = 1, max = 10, step = 1),
-                textInput("mp_label2", "Label", value = "Year 5")
-              ),
-              column(4,
-                numericInput("mp_case3", "Case #", value = 10, min = 1, max = 10, step = 1),
-                textInput("mp_label3", "Label", value = "Year 10")
+                                    "Velocity & Slip Ratio" = "velocity",
+                                    "Holdup \u2014 All Years (2\u00d75)" = "holdup_all",
+                                    "Velocity & Slip \u2014 Years 1\u20135" = "velocity_1_5",
+                                    "Velocity & Slip \u2014 Years 6\u201310" = "velocity_6_10")),
+            conditionalPanel(
+              "input.multi_plot_type == 'holdup' || input.multi_plot_type == 'velocity'",
+              tags$p("Select 3 cases for the 3 panels:",
+                     style = "font-size:0.68rem;color:#7a7060;font-weight:600;margin-bottom:4px;"),
+              fluidRow(
+                column(4,
+                  numericInput("mp_case1", "Case #", value = 1, min = 1, max = 10, step = 1),
+                  textInput("mp_label1", "Label", value = "Year 1")
+                ),
+                column(4,
+                  numericInput("mp_case2", "Case #", value = 5, min = 1, max = 10, step = 1),
+                  textInput("mp_label2", "Label", value = "Year 5")
+                ),
+                column(4,
+                  numericInput("mp_case3", "Case #", value = 10, min = 1, max = 10, step = 1),
+                  textInput("mp_label3", "Label", value = "Year 10")
+                )
               )
+            ),
+            conditionalPanel(
+              "input.multi_plot_type == 'holdup_all' || input.multi_plot_type == 'velocity_1_5' || input.multi_plot_type == 'velocity_6_10'",
+              helpText("Cases and labels are auto-assigned for appendix layouts.",
+                       style = "font-size:0.62rem;color:#999;font-style:italic;")
             ),
             actionButton("generate_multi", "Generate multi-panel plot",
                          class = "btn-academic w-100", icon = icon("chart-line")),
@@ -1091,8 +1102,6 @@ server <- function(input, output, session) {
   observeEvent(input$generate_multi, {
     req(rv$raw_data)
     plot_type <- input$multi_plot_type
-    cases <- c(input$mp_case1, input$mp_case2, input$mp_case3)
-    labels <- c(input$mp_label1, input$mp_label2, input$mp_label3)
 
     # Helper: extract x,y for a given case from a sheet (paired columns)
     extract_case <- function(sheet_name, case_num) {
@@ -1107,7 +1116,29 @@ server <- function(input, output, session) {
       data.frame(x = x[valid], y = y[valid])
     }
 
+    # ── Resolve cases & labels based on plot type ──────
+    is_holdup_type  <- plot_type %in% c("holdup", "holdup_all")
+    is_velocity_type <- plot_type %in% c("velocity", "velocity_1_5", "velocity_6_10")
+
     if (plot_type == "holdup") {
+      cases  <- c(input$mp_case1, input$mp_case2, input$mp_case3)
+      labels <- c(input$mp_label1, input$mp_label2, input$mp_label3)
+    } else if (plot_type == "velocity") {
+      cases  <- c(input$mp_case1, input$mp_case2, input$mp_case3)
+      labels <- c(input$mp_label1, input$mp_label2, input$mp_label3)
+    } else if (plot_type == "holdup_all") {
+      cases  <- 1:10
+      labels <- paste("Year", 1:10)
+    } else if (plot_type == "velocity_1_5") {
+      cases  <- 1:5
+      labels <- paste("Year", 1:5)
+    } else if (plot_type == "velocity_6_10") {
+      cases  <- 6:10
+      labels <- paste("Year", 6:10)
+    }
+
+    # ── Build holdup data ──────────────────────────────
+    if (is_holdup_type) {
       required <- c("Liquid holdup", "Water holdup", "Oil holdup")
       missing <- setdiff(required, names(rv$raw_data))
       if (length(missing) > 0) {
@@ -1145,13 +1176,16 @@ server <- function(input, output, session) {
                                   levels = c("Total Liquid (HOL)", "Water (HOLWT)", "Oil (HOLHL)"))
 
       rv$multi_panel_data <- plot_df
-      rv$multi_panel_type <- "holdup"
+      rv$multi_panel_type <- plot_type
 
-      updateTextInput(session, "chart_title", value = "Liquid Holdup Profiles")
+      title <- if (plot_type == "holdup_all") "Liquid Holdup Profiles \u2014 All Years"
+               else "Liquid Holdup Profiles"
+      updateTextInput(session, "chart_title", value = title)
       updateTextInput(session, "xlabel", value = "Pipeline Distance [m]")
       updateTextInput(session, "ylabel", value = "Holdup Fraction [-]")
 
-    } else if (plot_type == "velocity") {
+    # ── Build velocity data ────────────────────────────
+    } else if (is_velocity_type) {
       required <- c("Liquid Velocity", "Gas Velocity")
       missing <- setdiff(required, names(rv$raw_data))
       if (length(missing) > 0) {
@@ -1203,9 +1237,12 @@ server <- function(input, output, session) {
       plot_df$metric <- factor(plot_df$metric, levels = c("Velocity (m/s)", "Slip Ratio (-)"))
 
       rv$multi_panel_data <- plot_df
-      rv$multi_panel_type <- "velocity"
+      rv$multi_panel_type <- plot_type
 
-      updateTextInput(session, "chart_title", value = "Phase Velocity & Slip Ratio")
+      title <- if (plot_type == "velocity_1_5") "Phase Velocity & Slip Ratio \u2014 Years 1\u20135"
+               else if (plot_type == "velocity_6_10") "Phase Velocity & Slip Ratio \u2014 Years 6\u201310"
+               else "Phase Velocity & Slip Ratio"
+      updateTextInput(session, "chart_title", value = title)
       updateTextInput(session, "xlabel", value = "Pipeline Distance [m]")
       updateTextInput(session, "ylabel", value = "")
     }
@@ -1272,7 +1309,7 @@ server <- function(input, output, session) {
         panel.spacing    = unit(14, "pt")
       )
 
-      if (rv$multi_panel_type == "holdup") {
+      if (rv$multi_panel_type %in% c("holdup", "holdup_all")) {
         var_colors    <- c("Total Liquid (HOL)" = pal[1],
                            "Water (HOLWT)"      = pal[2],
                            "Oil (HOLHL)"        = pal[3])
@@ -1280,9 +1317,12 @@ server <- function(input, output, session) {
                            "Water (HOLWT)"      = "dashed",
                            "Oil (HOLHL)"        = "dashed")
 
+        # 3-panel (1x3) for main text; 10-panel (2x5) for appendix
+        facet_ncol <- if (rv$multi_panel_type == "holdup_all") 5 else 3
+
         p <- ggplot(mpdf, aes(x = x, y = y, color = variable, linetype = variable)) +
           geom_line(linewidth = lw) +
-          facet_wrap(~ panel, ncol = 3) +
+          facet_wrap(~ panel, ncol = facet_ncol) +
           scale_color_manual(values = var_colors) +
           scale_linetype_manual(values = var_linetypes) +
           labs(x = x_lab, y = y_lab, title = t_lab, subtitle = st_lab,
@@ -1323,7 +1363,7 @@ server <- function(input, output, session) {
 
         return(p)
 
-      } else if (rv$multi_panel_type == "velocity") {
+      } else if (rv$multi_panel_type %in% c("velocity", "velocity_1_5", "velocity_6_10")) {
         var_colors <- c("Liquid Velocity (UL)" = pal[1],
                         "Gas Velocity (UG)"    = pal[2],
                         "Slip Ratio (UG/UL)"   = pal[3])
