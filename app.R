@@ -430,7 +430,14 @@ ui <- page_navbar(
                 selectInput("extract_trend_type", "Trend type",
                             choices = c("Linear" = "lm",
                                         "LOESS smooth" = "loess"),
-                            selected = "lm")
+                            selected = "lm"),
+                conditionalPanel("input.extract_trend_type == 'lm'",
+                  selectInput("extract_eq_pos", "Equation position",
+                              choices = c("Top Left" = "tl", "Top Right" = "tr",
+                                          "Bottom Left" = "bl", "Bottom Right" = "br",
+                                          "Hidden" = "none"),
+                              selected = "tr")
+                )
               ),
               actionButton("generate_extraction", "Generate extraction plot",
                            class = "btn-academic w-100", icon = icon("chart-line"))
@@ -1087,19 +1094,29 @@ server <- function(input, output, session) {
           p <- p + geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
                                color = pal[2], linetype = "dashed", linewidth = 0.7)
           # Add equation and R² annotation
-          fit <- lm(y ~ x, data = edf)
-          co <- coef(fit)
-          r2 <- summary(fit)$r.squared
-          sign_char <- if (co[2] >= 0) "+" else "\u2013"
-          eq_label <- sprintf("y = %.3f x %s %.2f\nR\u00b2 = %.4f",
-                              co[2], sign_char, abs(co[1]), r2)
-          p <- p + annotate("label",
-            x = min(edf$x) + diff(range(edf$x)) * 0.02,
-            y = max(edf$y) - diff(range(edf$y)) * 0.02,
-            label = eq_label, hjust = 0, vjust = 1,
-            size = 3.2, color = pal[2], lineheight = 1.2,
-            fill = alpha("white", 0.92), label.size = 0.25,
-            label.padding = unit(4, "pt"))
+          eq_pos <- input$extract_eq_pos %||% "tr"
+          if (eq_pos != "none") {
+            fit <- lm(y ~ x, data = edf)
+            co <- coef(fit)
+            r2 <- summary(fit)$r.squared
+            sign_char <- if (co[2] >= 0) "+" else "\u2013"
+            eq_label <- sprintf("y = %.3f x %s %.2f\nR\u00b2 = %.4f",
+                                co[2], sign_char, abs(co[1]), r2)
+            x_rng <- range(edf$x)
+            y_rng <- range(edf$y)
+            eq_x <- if (grepl("l", eq_pos)) x_rng[1] + diff(x_rng) * 0.02
+                    else x_rng[2] - diff(x_rng) * 0.02
+            eq_y <- if (grepl("t", eq_pos)) y_rng[2] - diff(y_rng) * 0.02
+                    else y_rng[1] + diff(y_rng) * 0.02
+            eq_hjust <- if (grepl("l", eq_pos)) 0 else 1
+            eq_vjust <- if (grepl("t", eq_pos)) 1 else 0
+            p <- p + annotate("label",
+              x = eq_x, y = eq_y,
+              label = eq_label, hjust = eq_hjust, vjust = eq_vjust,
+              size = 3.2, color = pal[2], lineheight = 1.2,
+              fill = alpha("white", 0.92), label.size = 0.25,
+              label.padding = unit(4, "pt"))
+          }
         } else {
           p <- p + geom_smooth(method = "loess", formula = y ~ x, se = FALSE,
                                color = pal[2], linetype = "dashed", linewidth = 0.7,
