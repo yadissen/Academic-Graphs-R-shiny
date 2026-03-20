@@ -1298,14 +1298,18 @@ server <- function(input, output, session) {
             legend.text = element_text(size = leg_sz)
           )
 
-        # Legend position
+        # Legend: default to bottom-center outside for multi-panel
         lp <- input$legend_pos %||% "Bottom Right"
         if (lp == "Hidden") {
           p <- p + theme(legend.position = "none")
         } else {
-          pos <- leg_pos(lp); jst <- leg_just(lp)
-          p <- p + theme(legend.position = pos, legend.justification = jst,
-                         legend.position.inside = pos)
+          p <- p + theme(
+            legend.position = "bottom",
+            legend.justification = "center",
+            legend.background = element_rect(fill = alpha("white", 0.95),
+                                              color = "#cccccc", linewidth = 0.3),
+            legend.margin = margin(t = 4, b = 4, l = 8, r = 8)
+          )
         }
 
         # Override legend keys to show line swatches with correct linetypes
@@ -1326,7 +1330,7 @@ server <- function(input, output, session) {
 
         p <- ggplot(mpdf, aes(x = x, y = y, color = variable)) +
           geom_line(linewidth = lw) +
-          facet_grid(metric ~ panel, scales = "free_y") +
+          facet_grid(metric ~ panel, scales = "free_y", switch = "y") +
           scale_color_manual(values = var_colors) +
           labs(x = x_lab, y = NULL, title = t_lab, subtitle = st_lab,
                color = NULL) +
@@ -1339,18 +1343,26 @@ server <- function(input, output, session) {
             axis.title  = element_text(size = label_sz),
             axis.text   = element_text(size = font_size),
             legend.text = element_text(size = leg_sz),
-            strip.text.y = element_text(size = label_sz * 0.85, face = "bold",
-                                         angle = -90)
+            # Row strips on left side act as y-axis labels
+            strip.placement  = "outside",
+            strip.text.y.left = element_text(size = label_sz, face = "bold",
+                                              angle = 90, color = "#1a1714",
+                                              margin = margin(r = 6)),
+            strip.background.y = element_rect(fill = "white", color = NA)
           )
 
-        # Legend position
+        # Legend: default to bottom-center outside the plot for multi-panel
         lp <- input$legend_pos %||% "Bottom Right"
         if (lp == "Hidden") {
           p <- p + theme(legend.position = "none")
         } else {
-          pos <- leg_pos(lp); jst <- leg_just(lp)
-          p <- p + theme(legend.position = pos, legend.justification = jst,
-                         legend.position.inside = pos)
+          p <- p + theme(
+            legend.position = "bottom",
+            legend.justification = "center",
+            legend.background = element_rect(fill = alpha("white", 0.95),
+                                              color = "#cccccc", linewidth = 0.3),
+            legend.margin = margin(t = 4, b = 4, l = 8, r = 8)
+          )
         }
 
         p <- p + guides(
