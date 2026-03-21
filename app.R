@@ -2391,8 +2391,8 @@ server <- function(input, output, session) {
       theme(
         strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
         strip.text = element_text(size = opts$label_size * 0.9, face = "bold",
-                                   color = "#1a1714", margin = margin(t = 4, b = 4)),
-        panel.spacing = unit(14, "pt"),
+                                   color = "#1a1714", margin = margin(4, 0, 4, 0)),
+        panel.spacing = unit(1, "lines"),
         plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
                                    margin = margin(b = 8)),
         axis.title = element_text(size = opts$label_size),
@@ -2646,8 +2646,8 @@ server <- function(input, output, session) {
       theme(
         strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.4),
         strip.text = element_text(size = opts$label_size * 0.7, face = "bold",
-                                   color = "#1a1714", margin = margin(t = 2, b = 2)),
-        panel.spacing = unit(8, "pt"),
+                                   color = "#1a1714", margin = margin(4, 0, 4, 0)),
+        panel.spacing = unit(1, "lines"),
         plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
                                    margin = margin(b = 6)),
         axis.title = element_text(size = opts$label_size * 0.9),
