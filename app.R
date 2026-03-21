@@ -525,6 +525,89 @@ ui <- page_navbar(
   ),
 
   # ═══════════════════════════════════════════════════════
+  #  TAB 5: TRANSIENT ANALYSIS (Shutdown & Restart)
+  # ═══════════════════════════════════════════════════════
+  nav_panel("Transient Analysis", icon = icon("temperature-arrow-down"),
+    layout_sidebar(
+      fillable = TRUE,
+      sidebar = sidebar(
+        width = 320,
+        id = "transient_sidebar",
+        accordion(
+          id = "acc_transient",
+          open = c("Plot Selection", "Appearance", "Export"),
+
+          accordion_panel("Plot Selection", icon = icon("chart-line"),
+            helpText("Pre-built plots from Shutdown.xlsx and Restart.xlsx bundled with the app.",
+                     style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
+            selectInput("transient_plot_type", "Select Figure",
+                        choices = c(
+                          "Fig 4.15: Temperature Cooldown Profiles" = "fig415",
+                          "Fig 4.16: Cooldown Rate Comparison"      = "fig416",
+                          "Fig 4.17: Pressure Build-Up (Restart)"   = "fig417",
+                          "Fig 4.18: Liquid Flow Rate Ramp-Up"      = "fig418"
+                        ),
+                        selected = "fig415"),
+            actionButton("transient_generate_btn", "Generate Plot",
+                         class = "btn-academic w-100", icon = icon("chart-line"))
+          ),
+
+          accordion_panel("Appearance", icon = icon("palette"),
+            numericInput("trans_title_size", "Title font size", value = 16, min = 8, max = 32, step = 1),
+            numericInput("trans_axis_label_size", "Axis label size", value = 14, min = 8, max = 28, step = 1),
+            numericInput("trans_axis_text_size", "Tick label size", value = 12, min = 6, max = 24, step = 1),
+            numericInput("trans_legend_size", "Legend text size", value = 10, min = 6, max = 20, step = 1),
+            sliderInput("trans_line_weight", "Line weight", min = 0.3, max = 3, value = 0.9, step = 0.1),
+            selectInput("trans_grid", "Grid lines",
+                        choices = c("None" = "none", "Major" = "major",
+                                    "Major + Minor" = "both",
+                                    "X only" = "x", "Y only" = "y"),
+                        selected = "major")
+          ),
+
+          accordion_panel("Export", icon = icon("download"),
+            fluidRow(
+              column(6, numericInput("trans_export_w", "W (in)", value = 10, min = 2, max = 24, step = 0.25)),
+              column(6, numericInput("trans_export_h", "H (in)", value = 6, min = 2, max = 16, step = 0.25))
+            ),
+            fluidRow(
+              column(6, numericInput("trans_export_dpi", "DPI", value = 300, min = 72, max = 1200, step = 50)),
+              column(6, selectInput("trans_export_fmt", "Format",
+                                    choices = c("SVG" = "svg", "PDF" = "pdf",
+                                                "PNG" = "png", "TIFF" = "tiff"),
+                                    selected = "pdf"))
+            ),
+            textInput("trans_export_filename", "Filename", value = "figure_4_15"),
+            downloadButton("trans_download", "Export Figure",
+                           class = "btn-export w-100", icon = icon("download"))
+          )
+        ) # end accordion
+      ), # end sidebar
+
+      # Main content
+      layout_column_wrap(
+        width = 1,
+        card(
+          card_header(
+            class = "d-flex align-items-center justify-content-between",
+            span("Transient Analysis Preview"),
+            span(textOutput("transient_caption_header", inline = TRUE),
+                 style = "font-size:0.7rem;color:#7a7060;font-style:italic;max-width:60%;text-align:right;")
+          ),
+          card_body(
+            class = "plot-container text-center",
+            plotOutput("transient_plot", height = "650px", width = "100%")
+          ),
+          card_footer(
+            style = "font-size:0.75rem;color:#555;font-style:italic;padding:8px 16px;",
+            textOutput("transient_caption")
+          )
+        )
+      )
+    ) # end layout_sidebar
+  ),
+
+  # ═══════════════════════════════════════════════════════
   #  TAB 4: PROFILE MATRIX (Appendix Figures)
   # ═══════════════════════════════════════════════════════
   nav_panel("Profile Matrix", icon = icon("grip"),
@@ -1713,6 +1796,561 @@ server <- function(input, output, session) {
       dpi <- input$matrix_export_dpi %||% 300
       fmt <- input$matrix_export_fmt %||% "pdf"
       ggsave(file, plot = p, width = w, height = h, dpi = dpi,
+             device = fmt, bg = "white")
+    }
+  )
+
+  # ══════════════════════════════════════════════════════
+  #  TRANSIENT ANALYSIS (Shutdown & Restart Figures)
+  # ══════════════════════════════════════════════════════
+
+  # Nature palette: Year 1 = colour 1 (red), Year 10 = colour 4 (dark blue)
+  NATURE_PAL <- PALETTES[["Nature"]]
+  YEAR1_COL  <- NATURE_PAL[1]   # #E64B35 (red)
+  YEAR10_COL <- NATURE_PAL[4]   # #3C5488 (dark blue)
+
+  # Reactive: hold the built transient plot and caption
+
+  transient_result <- reactiveVal(list(plot = NULL, caption = ""))
+
+  observeEvent(input$transient_generate_btn, {
+    fig_type <- input$transient_plot_type
+
+    # Helper: load shutdown data
+    load_shutdown <- function() {
+      tryCatch({
+        s1 <- as.data.frame(read_excel("Shutdown.xlsx", sheet = 1, col_names = TRUE, .name_repair = "minimal"))
+        s2 <- as.data.frame(read_excel("Shutdown.xlsx", sheet = 2, col_names = TRUE, .name_repair = "minimal"))
+        list(year1 = s1, year10 = s2)
+      }, error = function(e) {
+        showNotification(paste0("Error loading Shutdown.xlsx: ", e$message), type = "error")
+        NULL
+      })
+    }
+
+    # Helper: load restart data
+    load_restart <- function() {
+      tryCatch({
+        r1 <- as.data.frame(read_excel("Restart.xlsx", sheet = 1, col_names = TRUE, .name_repair = "minimal"))
+        r2 <- as.data.frame(read_excel("Restart.xlsx", sheet = 2, col_names = TRUE, .name_repair = "minimal"))
+        list(year1 = r1, year10 = r2)
+      }, error = function(e) {
+        showNotification(paste0("Error loading Restart.xlsx: ", e$message), type = "error")
+        NULL
+      })
+    }
+
+    # Common styling parameters
+    title_sz  <- input$trans_title_size %||% 16
+    label_sz  <- input$trans_axis_label_size %||% 14
+    text_sz   <- input$trans_axis_text_size %||% 12
+    leg_sz    <- input$trans_legend_size %||% 10
+    lw        <- input$trans_line_weight %||% 0.9
+    grid_type <- input$trans_grid %||% "major"
+
+    # ────────────────────────────────────────────────────
+    #  FIGURE 4.15: Temperature Cooldown Profiles
+    # ────────────────────────────────────────────────────
+    if (fig_type == "fig415") {
+      sd <- load_shutdown()
+      req(sd)
+
+      # Extract time (hr) and temperature columns
+      df1 <- data.frame(
+        time = suppressWarnings(as.numeric(sd$year1[[3]])),
+        temp = suppressWarnings(as.numeric(sd$year1[[2]]))
+      )
+      df10 <- data.frame(
+        time = suppressWarnings(as.numeric(sd$year10[[3]])),
+        temp = suppressWarnings(as.numeric(sd$year10[[2]]))
+      )
+      df1  <- df1[!is.na(df1$time) & !is.na(df1$temp), ]
+      df10 <- df10[!is.na(df10$time) & !is.na(df10$temp), ]
+
+      # Find WAT (32°C) crossing times
+      find_crossing <- function(df, threshold) {
+        idx <- which(df$temp <= threshold)
+        if (length(idx) == 0) return(NA)
+        i <- idx[1]
+        if (i == 1) return(df$time[1])
+        # Linear interpolation
+        t1 <- df$time[i - 1]; t2 <- df$time[i]
+        y1 <- df$temp[i - 1]; y2 <- df$temp[i]
+        t1 + (threshold - y1) / (y2 - y1) * (t2 - t1)
+      }
+
+      wat_cross_y1  <- find_crossing(df1, 32)
+      wat_cross_y10 <- find_crossing(df10, 32)
+      hyd_cross_y1  <- find_crossing(df1, 25)
+      hyd_cross_y10 <- find_crossing(df10, 25)
+
+      # Build combined data
+      df1$year  <- "Year 1 (0% WC)"
+      df10$year <- "Year 10 (96% WC)"
+      plot_df <- rbind(df1, df10)
+      plot_df$year <- factor(plot_df$year, levels = c("Year 1 (0% WC)", "Year 10 (96% WC)"))
+
+      p <- ggplot(plot_df, aes(x = time, y = temp, color = year, linetype = year)) +
+        geom_line(linewidth = lw) +
+        scale_color_manual(values = c("Year 1 (0% WC)" = YEAR1_COL, "Year 10 (96% WC)" = YEAR10_COL)) +
+        scale_linetype_manual(values = c("Year 1 (0% WC)" = "solid", "Year 10 (96% WC)" = "dashed")) +
+        # WAT reference line
+        geom_hline(yintercept = 32, linetype = "dashed", color = "#E18727", linewidth = 0.6) +
+        annotate("text", x = 22, y = 32, label = "WAT \u2014 Wax Risk", color = "#E18727",
+                 size = 3.2, vjust = -0.5, hjust = 1) +
+        # Hydrate reference line
+        geom_hline(yintercept = 25, linetype = "dashed", color = "#7876B1", linewidth = 0.6) +
+        annotate("text", x = 22, y = 25, label = "Hydrate Formation Temperature", color = "#7876B1",
+                 size = 3.2, vjust = -0.5, hjust = 1)
+
+      # Annotations for WAT crossing
+      if (!is.na(wat_cross_y1)) {
+        p <- p + annotate("segment", x = wat_cross_y1, xend = wat_cross_y1,
+                          y = 32, yend = 32 - 3, color = YEAR1_COL, linewidth = 0.4,
+                          arrow = arrow(length = unit(4, "pt"), type = "closed")) +
+          annotate("label", x = wat_cross_y1, y = 32 - 4,
+                   label = paste0("Shutdown Window: ", round(wat_cross_y1, 1), " hr"),
+                   color = YEAR1_COL, fill = alpha("white", 0.92),
+                   label.size = 0.25, size = 2.8, label.padding = unit(3, "pt"))
+      }
+      if (!is.na(wat_cross_y10)) {
+        p <- p + annotate("segment", x = wat_cross_y10, xend = wat_cross_y10,
+                          y = 32, yend = 32 + 3, color = YEAR10_COL, linewidth = 0.4,
+                          arrow = arrow(length = unit(4, "pt"), type = "closed")) +
+          annotate("label", x = wat_cross_y10, y = 32 + 4,
+                   label = paste0("Shutdown Window: ", round(wat_cross_y10, 1), " hr"),
+                   color = YEAR10_COL, fill = alpha("white", 0.92),
+                   label.size = 0.25, size = 2.8, label.padding = unit(3, "pt"))
+      }
+
+      # Annotations for hydrate crossing
+      if (!is.na(hyd_cross_y1)) {
+        p <- p + annotate("segment", x = hyd_cross_y1, xend = hyd_cross_y1,
+                          y = 25, yend = 25 - 3, color = YEAR1_COL, linewidth = 0.4,
+                          arrow = arrow(length = unit(4, "pt"), type = "closed")) +
+          annotate("label", x = hyd_cross_y1, y = 25 - 4,
+                   label = paste0("No-Touch Time: ~", round(hyd_cross_y1, 1), " hr"),
+                   color = YEAR1_COL, fill = alpha("white", 0.92),
+                   label.size = 0.25, size = 2.8, label.padding = unit(3, "pt"))
+      }
+      if (!is.na(hyd_cross_y10)) {
+        p <- p + annotate("segment", x = hyd_cross_y10, xend = hyd_cross_y10,
+                          y = 25, yend = 25 + 3, color = YEAR10_COL, linewidth = 0.4,
+                          arrow = arrow(length = unit(4, "pt"), type = "closed")) +
+          annotate("label", x = hyd_cross_y10, y = 25 + 4,
+                   label = paste0("No-Touch Time: ~", round(hyd_cross_y10, 1), " hr"),
+                   color = YEAR10_COL, fill = alpha("white", 0.92),
+                   label.size = 0.25, size = 2.8, label.padding = unit(3, "pt"))
+      }
+
+      p <- p +
+        scale_x_continuous(limits = c(0, 24), expand = expansion(mult = 0.02)) +
+        scale_y_continuous(expand = expansion(mult = 0.05)) +
+        labs(x = "Time (hours)", y = "Temperature (\u00b0C)",
+             title = "Temperature Cooldown Profiles During Shutdown") +
+        theme_academic(base_size = text_sz, grid = grid_type, border = TRUE, ticks_inward = TRUE) +
+        theme(
+          plot.title    = element_text(size = title_sz, face = "bold", hjust = 0.5, margin = margin(b = 8)),
+          axis.title    = element_text(size = label_sz),
+          axis.text     = element_text(size = text_sz),
+          legend.text   = element_text(size = leg_sz),
+          legend.position = c(0.98, 0.98),
+          legend.justification = c(1, 1),
+          legend.position.inside = c(0.98, 0.98)
+        ) +
+        guides(color = guide_legend(ncol = 1), linetype = guide_legend(ncol = 1))
+
+      cap <- paste0(
+        "Temperature evolution at separator inlet during shutdown. ",
+        "Shutdown window (time to WAT) is ", round(wat_cross_y1, 1), " hr (Year 1) and ",
+        round(wat_cross_y10, 1), " hr (Year 10). ",
+        "No-touch time (time to hydrate temperature) is ", round(hyd_cross_y1, 1), " hr (Year 1) and ",
+        round(hyd_cross_y10, 1), " hr (Year 10). ",
+        "Higher water cut provides longer operational windows despite faster cooldown rate."
+      )
+
+      transient_result(list(plot = p, caption = cap))
+      updateTextInput(session, "trans_export_filename", value = "figure_4_15_temperature_cooldown")
+    }
+
+    # ────────────────────────────────────────────────────
+    #  FIGURE 4.16: Cooldown Rate and Critical Time Comparison
+    # ────────────────────────────────────────────────────
+    else if (fig_type == "fig416") {
+      sd <- load_shutdown()
+      req(sd)
+
+      df1 <- data.frame(
+        time = suppressWarnings(as.numeric(sd$year1[[3]])),
+        temp = suppressWarnings(as.numeric(sd$year1[[2]]))
+      )
+      df10 <- data.frame(
+        time = suppressWarnings(as.numeric(sd$year10[[3]])),
+        temp = suppressWarnings(as.numeric(sd$year10[[2]]))
+      )
+      df1  <- df1[!is.na(df1$time) & !is.na(df1$temp), ]
+      df10 <- df10[!is.na(df10$time) & !is.na(df10$temp), ]
+
+      find_crossing <- function(df, threshold) {
+        idx <- which(df$temp <= threshold)
+        if (length(idx) == 0) return(NA)
+        i <- idx[1]
+        if (i == 1) return(df$time[1])
+        t1 <- df$time[i - 1]; t2 <- df$time[i]
+        y1 <- df$temp[i - 1]; y2 <- df$temp[i]
+        t1 + (threshold - y1) / (y2 - y1) * (t2 - t1)
+      }
+
+      # Calculate cooldown rates (initial temp - WAT temp) / time to WAT
+      wat_y1  <- find_crossing(df1, 32)
+      wat_y10 <- find_crossing(df10, 32)
+      hyd_y1  <- find_crossing(df1, 25)
+      hyd_y10 <- find_crossing(df10, 25)
+
+      init_temp_y1  <- df1$temp[1]
+      init_temp_y10 <- df10$temp[1]
+
+      # Cooldown rate: total temp drop / total time (over 24hr)
+      cooldown_rate_y1  <- (init_temp_y1 - df1$temp[nrow(df1)]) / 24
+      cooldown_rate_y10 <- (init_temp_y10 - df10$temp[nrow(df10)]) / 24
+
+      # Bar chart data
+      bar_df <- data.frame(
+        metric = c("Cooldown Rate\n(\u00b0C/hr)", "Cooldown Rate\n(\u00b0C/hr)",
+                    "Shutdown\nWindow (hr)", "Shutdown\nWindow (hr)",
+                    "No-Touch\nTime (hr)", "No-Touch\nTime (hr)"),
+        year = c("Year 1", "Year 10", "Year 1", "Year 10", "Year 1", "Year 10"),
+        value = c(cooldown_rate_y1, cooldown_rate_y10, wat_y1, wat_y10, hyd_y1, hyd_y10),
+        stringsAsFactors = FALSE
+      )
+      bar_df$metric <- factor(bar_df$metric,
+                               levels = c("Cooldown Rate\n(\u00b0C/hr)",
+                                          "Shutdown\nWindow (hr)",
+                                          "No-Touch\nTime (hr)"))
+      bar_df$year <- factor(bar_df$year, levels = c("Year 1", "Year 10"))
+
+      # Calculate percentage differences
+      pct_cooldown <- round((cooldown_rate_y10 - cooldown_rate_y1) / cooldown_rate_y1 * 100)
+      pct_shutdown <- round((wat_y10 - wat_y1) / wat_y1 * 100)
+      pct_notouch  <- round((hyd_y10 - hyd_y1) / hyd_y1 * 100)
+
+      p <- ggplot(bar_df, aes(x = metric, y = value, fill = year)) +
+        geom_col(position = position_dodge(width = 0.7), width = 0.6) +
+        geom_text(aes(label = round(value, 2)),
+                  position = position_dodge(width = 0.7), vjust = -0.5, size = 3.2) +
+        scale_fill_manual(values = c("Year 1" = YEAR1_COL, "Year 10" = YEAR10_COL)) +
+        # Add percentage difference annotations
+        annotate("text", x = 1, y = max(cooldown_rate_y1, cooldown_rate_y10) * 1.15,
+                 label = paste0("+", pct_cooldown, "%"), color = "#333333", size = 3.5, fontface = "bold") +
+        annotate("text", x = 2, y = max(wat_y1, wat_y10) * 1.15,
+                 label = paste0("+", pct_shutdown, "%"), color = "#333333", size = 3.5, fontface = "bold") +
+        annotate("text", x = 3, y = max(hyd_y1, hyd_y10) * 1.15,
+                 label = paste0("+", pct_notouch, "%"), color = "#333333", size = 3.5, fontface = "bold") +
+        scale_y_continuous(expand = expansion(mult = c(0, 0.2))) +
+        labs(x = NULL, y = "Value",
+             title = "Cooldown Rate and Critical Time Comparison") +
+        theme_academic(base_size = text_sz, grid = "y", border = TRUE, ticks_inward = TRUE) +
+        theme(
+          plot.title    = element_text(size = title_sz, face = "bold", hjust = 0.5, margin = margin(b = 8)),
+          axis.title    = element_text(size = label_sz),
+          axis.text     = element_text(size = text_sz),
+          axis.text.x   = element_text(size = text_sz - 1, lineheight = 1.1),
+          legend.text   = element_text(size = leg_sz),
+          legend.position = c(0.02, 0.98),
+          legend.justification = c(0, 1),
+          legend.position.inside = c(0.02, 0.98)
+        )
+
+      cap <- paste0(
+        "Comparison of cooldown rates and critical shutdown times. ",
+        "Despite ", pct_cooldown, "% faster cooldown at high water cut, ",
+        "no-touch time increases by ", pct_notouch, "% due to higher initial temperature."
+      )
+
+      transient_result(list(plot = p, caption = cap))
+      updateTextInput(session, "trans_export_filename", value = "figure_4_16_cooldown_comparison")
+    }
+
+    # ────────────────────────────────────────────────────
+    #  FIGURE 4.17: Pressure Build-Up During Restart
+    # ────────────────────────────────────────────────────
+    else if (fig_type == "fig417") {
+      rd <- load_restart()
+      req(rd)
+
+      # Year 1: columns 1=Time[s], 2=PT PIPE-1, 3=Time[s], 4=PT PIPE-7
+      # Year 10: same structure
+      df_y1_p1 <- data.frame(
+        time = suppressWarnings(as.numeric(rd$year1[[1]])) / 3600,
+        pressure = suppressWarnings(as.numeric(rd$year1[[2]]))
+      )
+      df_y1_p7 <- data.frame(
+        time = suppressWarnings(as.numeric(rd$year1[[3]])) / 3600,
+        pressure = suppressWarnings(as.numeric(rd$year1[[4]]))
+      )
+      df_y10_p1 <- data.frame(
+        time = suppressWarnings(as.numeric(rd$year10[[1]])) / 3600,
+        pressure = suppressWarnings(as.numeric(rd$year10[[2]]))
+      )
+      df_y10_p7 <- data.frame(
+        time = suppressWarnings(as.numeric(rd$year10[[3]])) / 3600,
+        pressure = suppressWarnings(as.numeric(rd$year10[[4]]))
+      )
+
+      # Clean NAs
+      df_y1_p1  <- df_y1_p1[!is.na(df_y1_p1$time) & !is.na(df_y1_p1$pressure), ]
+      df_y1_p7  <- df_y1_p7[!is.na(df_y1_p7$time) & !is.na(df_y1_p7$pressure), ]
+      df_y10_p1 <- df_y10_p1[!is.na(df_y10_p1$time) & !is.na(df_y10_p1$pressure), ]
+      df_y10_p7 <- df_y10_p7[!is.na(df_y10_p7$time) & !is.na(df_y10_p7$pressure), ]
+
+      # Zoom to first 2 hours
+      df_y1_p1  <- df_y1_p1[df_y1_p1$time <= 2, ]
+      df_y1_p7  <- df_y1_p7[df_y1_p7$time <= 2, ]
+      df_y10_p1 <- df_y10_p1[df_y10_p1$time <= 2, ]
+      df_y10_p7 <- df_y10_p7[df_y10_p7$time <= 2, ]
+
+      # Combine
+      df_y1_p1$series  <- "Year 1 Inlet (PIPE-1)"
+      df_y1_p7$series  <- "Year 1 Outlet (PIPE-7)"
+      df_y10_p1$series <- "Year 10 Inlet (PIPE-1)"
+      df_y10_p7$series <- "Year 10 Outlet (PIPE-7)"
+
+      plot_df <- rbind(df_y1_p1, df_y1_p7, df_y10_p1, df_y10_p7)
+      plot_df$series <- factor(plot_df$series,
+                                levels = c("Year 1 Inlet (PIPE-1)", "Year 1 Outlet (PIPE-7)",
+                                           "Year 10 Inlet (PIPE-1)", "Year 10 Outlet (PIPE-7)"))
+
+      # Find peak pressure for Year 1 inlet
+      peak_idx <- which.max(df_y1_p1$pressure)
+      peak_p   <- df_y1_p1$pressure[peak_idx]
+      peak_t   <- df_y1_p1$time[peak_idx]
+
+      # Colours: Inlet = Nature[1] (red-ish), Outlet = Nature[3] (green)
+      inlet_col  <- YEAR1_COL
+      outlet_col <- NATURE_PAL[3]  # #00A087
+
+      p <- ggplot(plot_df, aes(x = time, y = pressure, color = series, linetype = series)) +
+        geom_line(linewidth = lw) +
+        scale_color_manual(values = c(
+          "Year 1 Inlet (PIPE-1)"   = inlet_col,
+          "Year 1 Outlet (PIPE-7)"  = outlet_col,
+          "Year 10 Inlet (PIPE-1)"  = inlet_col,
+          "Year 10 Outlet (PIPE-7)" = outlet_col
+        )) +
+        scale_linetype_manual(values = c(
+          "Year 1 Inlet (PIPE-1)"   = "solid",
+          "Year 1 Outlet (PIPE-7)"  = "solid",
+          "Year 10 Inlet (PIPE-1)"  = "dashed",
+          "Year 10 Outlet (PIPE-7)" = "dashed"
+        )) +
+        # 60 bara limit
+        geom_hline(yintercept = 60, linetype = "dashed", color = "#DC0000", linewidth = 0.6) +
+        annotate("text", x = 1.8, y = 60, label = "Inlet Pressure Constraint",
+                 color = "#DC0000", size = 3.2, vjust = -0.5, hjust = 1) +
+        # 33 bara separator
+        geom_hline(yintercept = 33, linetype = "dotted", color = "#1a1a1a", linewidth = 0.5) +
+        annotate("text", x = 1.8, y = 33, label = "Separator Pressure",
+                 color = "#1a1a1a", size = 3.2, vjust = 1.5, hjust = 1) +
+        # Peak pressure annotation
+        annotate("point", x = peak_t, y = peak_p, size = 3, color = inlet_col, shape = 16) +
+        annotate("segment", x = peak_t, xend = peak_t,
+                 y = peak_p, yend = peak_p + 1.5,
+                 color = inlet_col, linewidth = 0.4,
+                 arrow = arrow(length = unit(4, "pt"), type = "closed")) +
+        annotate("label", x = peak_t, y = peak_p + 2,
+                 label = paste0("Peak: ", round(peak_p, 2), " bara\nat t=", round(peak_t, 2), " hr"),
+                 color = inlet_col, fill = alpha("white", 0.92),
+                 label.size = 0.25, size = 2.8, label.padding = unit(3, "pt")) +
+        # Margin annotation
+        annotate("label", x = 1.5, y = 59,
+                 label = paste0("Margin: ", round(60 - peak_p, 2), " bara below limit"),
+                 color = "#DC0000", fill = alpha("white", 0.92),
+                 label.size = 0.25, size = 2.8, label.padding = unit(3, "pt")) +
+        scale_x_continuous(limits = c(0, 2), expand = expansion(mult = 0.02)) +
+        scale_y_continuous(expand = expansion(mult = 0.05)) +
+        labs(x = "Time (hours)", y = "Pressure (bara)",
+             title = "Pressure Build-Up During Restart") +
+        theme_academic(base_size = text_sz, grid = grid_type, border = TRUE, ticks_inward = TRUE) +
+        theme(
+          plot.title    = element_text(size = title_sz, face = "bold", hjust = 0.5, margin = margin(b = 8)),
+          axis.title    = element_text(size = label_sz),
+          axis.text     = element_text(size = text_sz),
+          legend.text   = element_text(size = leg_sz),
+          legend.position = c(0.98, 0.50),
+          legend.justification = c(1, 0.5),
+          legend.position.inside = c(0.98, 0.50)
+        ) +
+        guides(color = guide_legend(ncol = 1), linetype = guide_legend(ncol = 1))
+
+      cap <- paste0(
+        "Pressure transients during restart from cold shutdown. ",
+        "Inlet pressure builds from ", round(df_y1_p1$pressure[1], 1), " bara to steady-state with peak of ",
+        round(peak_p, 2), " bara at ", round(peak_t * 60, 0), " minutes. ",
+        "Adequate ", round(60 - peak_p, 2), " bara margin maintained below 60 bara constraint throughout restart."
+      )
+
+      transient_result(list(plot = p, caption = cap))
+      updateTextInput(session, "trans_export_filename", value = "figure_4_17_pressure_restart")
+    }
+
+    # ────────────────────────────────────────────────────
+    #  FIGURE 4.18: Liquid Flow Rate Ramp-Up During Restart
+    # ────────────────────────────────────────────────────
+    else if (fig_type == "fig418") {
+      rd <- load_restart()
+      req(rd)
+
+      # QLT columns: col 5 = Time[s], col 6 = QLT [m3/d]
+      df_y1 <- data.frame(
+        time = suppressWarnings(as.numeric(rd$year1[[5]])) / 3600,
+        flow = suppressWarnings(as.numeric(rd$year1[[6]]))
+      )
+      df_y10 <- data.frame(
+        time = suppressWarnings(as.numeric(rd$year10[[5]])) / 3600,
+        flow = suppressWarnings(as.numeric(rd$year10[[6]]))
+      )
+
+      df_y1  <- df_y1[!is.na(df_y1$time) & !is.na(df_y1$flow), ]
+      df_y10 <- df_y10[!is.na(df_y10$time) & !is.na(df_y10$flow), ]
+
+      # Zoom to first 1 hour
+      df_y1  <- df_y1[df_y1$time <= 1.0, ]
+      df_y10 <- df_y10[df_y10$time <= 1.0, ]
+
+      # Steady-state flow (use the last value from full dataset as reference)
+      rd_full_y1  <- as.data.frame(read_excel("Restart.xlsx", sheet = 1, col_names = TRUE, .name_repair = "minimal"))
+      rd_full_y10 <- as.data.frame(read_excel("Restart.xlsx", sheet = 2, col_names = TRUE, .name_repair = "minimal"))
+      ss_flow_y1  <- as.numeric(tail(rd_full_y1[[6]], 1))
+      ss_flow_y10 <- as.numeric(tail(rd_full_y10[[6]], 1))
+      ss_flow     <- max(ss_flow_y1, ss_flow_y10, na.rm = TRUE)
+      threshold_90 <- ss_flow * 0.90
+
+      # Find 90% achievement time
+      find_90_time <- function(df, thr) {
+        idx <- which(df$flow >= thr)
+        if (length(idx) == 0) return(NA)
+        df$time[idx[1]]
+      }
+      time_90_y1 <- find_90_time(df_y1, threshold_90)
+
+      df_y1$year  <- "Year 1 (0% WC)"
+      df_y10$year <- "Year 10 (96% WC)"
+      plot_df <- rbind(df_y1, df_y10)
+      plot_df$year <- factor(plot_df$year, levels = c("Year 1 (0% WC)", "Year 10 (96% WC)"))
+
+      p <- ggplot(plot_df, aes(x = time, y = flow, color = year, linetype = year)) +
+        geom_line(linewidth = lw) +
+        scale_color_manual(values = c("Year 1 (0% WC)" = YEAR1_COL, "Year 10 (96% WC)" = YEAR10_COL)) +
+        scale_linetype_manual(values = c("Year 1 (0% WC)" = "solid", "Year 10 (96% WC)" = "dashed"))
+
+      # Shaded ramp-up region (first few minutes)
+      ramp_end <- min(0.1, max(plot_df$time))
+      p <- p + annotate("rect", xmin = 0, xmax = ramp_end, ymin = -Inf, ymax = Inf,
+                         fill = YEAR1_COL, alpha = 0.06)
+
+      # Steady-state reference
+      p <- p + geom_hline(yintercept = ss_flow, linetype = "dashed", color = "#1a1a1a", linewidth = 0.5) +
+        annotate("text", x = 0.9, y = ss_flow,
+                 label = paste0("Steady-state: ~", format(round(ss_flow, 0), big.mark = ","), " m\u00b3/d"),
+                 color = "#1a1a1a", size = 3.0, vjust = -0.5, hjust = 1) +
+        # 90% threshold
+        geom_hline(yintercept = threshold_90, linetype = "dotted", color = "#808080", linewidth = 0.4) +
+        annotate("text", x = 0.9, y = threshold_90,
+                 label = paste0("90% threshold: ~", format(round(threshold_90, 0), big.mark = ","), " m\u00b3/d"),
+                 color = "#808080", size = 2.8, vjust = 1.5, hjust = 1)
+
+      # 90% achievement annotation
+      if (!is.na(time_90_y1)) {
+        p <- p + annotate("segment", x = time_90_y1, xend = time_90_y1,
+                          y = threshold_90, yend = threshold_90 * 0.7,
+                          color = YEAR1_COL, linewidth = 0.4,
+                          arrow = arrow(length = unit(4, "pt"), type = "closed")) +
+          annotate("label", x = time_90_y1 + 0.05, y = threshold_90 * 0.65,
+                   label = paste0("90% flow achieved\nin ~", round(time_90_y1 * 60, 0), " minutes"),
+                   color = YEAR1_COL, fill = alpha("white", 0.92),
+                   label.size = 0.25, size = 2.8, label.padding = unit(3, "pt"))
+      }
+
+      p <- p +
+        scale_x_continuous(limits = c(0, 1.0), expand = expansion(mult = 0.02)) +
+        scale_y_continuous(expand = expansion(mult = c(0.02, 0.08)),
+                           labels = function(x) format(x, big.mark = ",", scientific = FALSE)) +
+        labs(x = "Time (hours)", y = "Liquid Flow Rate (m\u00b3/d)",
+             title = "Liquid Flow Rate Ramp-Up During Restart") +
+        theme_academic(base_size = text_sz, grid = grid_type, border = TRUE, ticks_inward = TRUE) +
+        theme(
+          plot.title    = element_text(size = title_sz, face = "bold", hjust = 0.5, margin = margin(b = 8)),
+          axis.title    = element_text(size = label_sz),
+          axis.text     = element_text(size = text_sz),
+          legend.text   = element_text(size = leg_sz),
+          legend.position = c(0.98, 0.50),
+          legend.justification = c(1, 0.5),
+          legend.position.inside = c(0.98, 0.50)
+        ) +
+        guides(color = guide_legend(ncol = 1), linetype = guide_legend(ncol = 1))
+
+      time_90_min <- if (!is.na(time_90_y1)) round(time_90_y1 * 60, 0) else "N/A"
+      cap <- paste0(
+        "Liquid flow rate establishment during restart. ",
+        "Flow rate reaches 90% of steady-state value within ", time_90_min, " minutes (",
+        round(time_90_y1, 2), " hours), indicating rapid hydraulic stabilization. ",
+        "Full steady-state flow achieved within 1 hour."
+      )
+
+      transient_result(list(plot = p, caption = cap))
+      updateTextInput(session, "trans_export_filename", value = "figure_4_18_flow_rate_restart")
+    }
+
+    showNotification("\u2713 Transient plot generated", type = "message", duration = 3)
+  })
+
+  # Render transient plot
+  output$transient_plot <- renderPlot({
+    result <- transient_result()
+    if (is.null(result$plot)) {
+      ggplot() + theme_academic(base_size = 14) +
+        annotate("text", x = 0.5, y = 0.5,
+                 label = "Select a figure and click 'Generate Plot'",
+                 size = 5, color = "#999999", fontface = "italic") +
+        xlim(0, 1) + ylim(0, 1) +
+        theme(axis.title = element_blank(), axis.text = element_blank(),
+              axis.ticks = element_blank(), panel.border = element_blank(),
+              axis.line = element_blank())
+    } else {
+      result$plot
+    }
+  }, res = 96, execOnResize = TRUE)
+
+  # Caption output
+  output$transient_caption <- renderText({
+    result <- transient_result()
+    result$caption
+  })
+
+  output$transient_caption_header <- renderText({
+    fig_type <- input$transient_plot_type
+    switch(fig_type,
+      "fig415" = "Figure 4.15",
+      "fig416" = "Figure 4.16",
+      "fig417" = "Figure 4.17",
+      "fig418" = "Figure 4.18",
+      "")
+  })
+
+  # Export transient plot
+  output$trans_download <- downloadHandler(
+    filename = function() {
+      paste0(input$trans_export_filename %||% "transient_figure",
+             ".", input$trans_export_fmt %||% "pdf")
+    },
+    content = function(file) {
+      result <- transient_result()
+      req(result$plot)
+      w   <- input$trans_export_w %||% 10
+      h   <- input$trans_export_h %||% 6
+      dpi <- input$trans_export_dpi %||% 300
+      fmt <- input$trans_export_fmt %||% "pdf"
+      ggsave(file, plot = result$plot, width = w, height = h, dpi = dpi,
              device = fmt, bg = "white")
     }
   )
