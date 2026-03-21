@@ -2423,10 +2423,11 @@ server <- function(input, output, session) {
         }, numeric(1))))
         is_right  <- grepl("right", best)
         is_bottom <- grepl("bottom", best)
+        y_pad <- diff(y_range) * 0.05
         data.frame(
           panel = pnl,
           ann_x = if (is_right) t_range[2] - diff(t_range) * 0.02 else t_range[1] + diff(t_range) * 0.02,
-          ann_y = if (is_bottom) st$min_val else st$max_val,
+          ann_y = if (is_bottom) y_range[1] + y_pad else y_range[2] - y_pad,
           ann_hjust = if (is_right) 1 else 0,
           ann_vjust = if (is_bottom) 0 else 1,
           stringsAsFactors = FALSE
@@ -2593,10 +2594,11 @@ server <- function(input, output, session) {
       }, numeric(1))))
       is_right  <- grepl("right", best)
       is_bottom <- grepl("bottom", best)
+      y_pad <- diff(y_range) * 0.05
       data.frame(
         panel = pnl,
         ann_x = if (is_right) t_range[2] - diff(t_range) * 0.02 else t_range[1] + diff(t_range) * 0.02,
-        ann_y = if (is_bottom) st$min_val else st$max_val,
+        ann_y = if (is_bottom) y_range[1] + y_pad else y_range[2] - y_pad,
         ann_hjust = if (is_right) 1 else 0,
         ann_vjust = if (is_bottom) 0 else 1,
         stringsAsFactors = FALSE
@@ -2613,9 +2615,9 @@ server <- function(input, output, session) {
       geom_label(data = stats_df,
                  aes(x = ann_x, y = ann_y,
                      label = ann_label, hjust = ann_hjust, vjust = ann_vjust),
-                 size = 2, color = pal[4 %% length(pal) + 1],
+                 size = 2.2, color = pal[4 %% length(pal) + 1],
                  fill = alpha("white", 0.92), label.size = 0.15,
-                 label.padding = unit(2, "pt"), lineheight = 1.1) +
+                 label.padding = unit(3, "pt"), lineheight = 1.1) +
       theme_academic(base_size = opts$text_size * 0.85, grid = opts$grid,
                      border = TRUE, ticks_inward = TRUE) +
       theme(
