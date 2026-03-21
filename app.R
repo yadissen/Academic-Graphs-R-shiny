@@ -90,6 +90,11 @@ JOURNAL_PRESETS <- list(
   "Poster (A0)"           = list(w = 16,   h = 10,    dpi = 300, fmt = "png")
 )
 
+# ── Water cut mapping for production years (C01–C10) ─────────────────────────
+WATER_CUTS <- c(0, 11, 24, 36, 54, 62, 72, 82, 90, 96)
+CASE_LABELS <- paste0("C", sprintf("%02d", 1:10))
+YEAR_LABELS <- paste("Year", 1:10)
+
 # ── Flow regime definitions ───────────────────────────────────────────────────
 FLOW_REGIMES <- list(
   `1` = list(label = "Stratified", fill = "#2a4f6e"),
@@ -603,6 +608,146 @@ ui <- page_navbar(
       card_header("Imported data"),
       card_body(
         tableOutput("data_table")
+      )
+    )
+  ),
+
+  # ═══════════════════════════════════════════════════════
+  #  TAB 4: SLUGGING CHARACTERIZATION
+  # ═══════════════════════════════════════════════════════
+  nav_panel("Slugging", icon = icon("water"),
+    layout_sidebar(
+      fillable = TRUE,
+      sidebar = sidebar(
+        width = 320,
+        id = "slug_sidebar",
+        accordion(
+          id = "acc_slug",
+          open = c("Data Files", "Panel Selection"),
+
+          accordion_panel("Data Files", icon = icon("file-excel"),
+            fileInput("slug_file", "Slug.xlsx",
+                      accept = c(".xlsx", ".xls"),
+                      placeholder = "Drop Slug.xlsx here"),
+            fileInput("slugtrack_file", "Slugtracking.xlsx",
+                      accept = c(".xlsx", ".xls"),
+                      placeholder = "Drop Slugtracking.xlsx here"),
+            actionButton("load_slug_data", "Load slug data",
+                         class = "btn-academic w-100", icon = icon("database"))
+          ),
+
+          accordion_panel("Panel Selection", icon = icon("layer-group"),
+            helpText("Select 3 years for multi-panel time-series plots (Figs 4.10, 4.10-B, 4.11).",
+                     style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
+            fluidRow(
+              column(4,
+                selectInput("slug_panel_a", "Panel A", choices = 1:10, selected = 1),
+                textInput("slug_label_a", "Label", value = "Year 1 (0% WC)")
+              ),
+              column(4,
+                selectInput("slug_panel_b", "Panel B", choices = 1:10, selected = 5),
+                textInput("slug_label_b", "Label", value = "Year 5 (54% WC)")
+              ),
+              column(4,
+                selectInput("slug_panel_c", "Panel C", choices = 1:10, selected = 10),
+                textInput("slug_label_c", "Label", value = "Year 10 (96% WC)")
+              )
+            )
+          ),
+
+          accordion_panel("Time Window", icon = icon("clock"),
+            helpText("Select the time window for time-series plots.",
+                     style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
+            numericInput("slug_t_start", "Start time (s)", value = 0, min = 0, step = 100),
+            numericInput("slug_t_window", "Window duration (s)", value = 600, min = 60, step = 60)
+          ),
+
+          accordion_panel("Water Cut Values", icon = icon("tint"),
+            helpText("Adjust water cut (%) for each production year if needed.",
+                     style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
+            fluidRow(
+              column(6, numericInput("wc_1", "Year 1", value = 0, min = 0, max = 100)),
+              column(6, numericInput("wc_2", "Year 2", value = 11, min = 0, max = 100))
+            ),
+            fluidRow(
+              column(6, numericInput("wc_3", "Year 3", value = 24, min = 0, max = 100)),
+              column(6, numericInput("wc_4", "Year 4", value = 36, min = 0, max = 100))
+            ),
+            fluidRow(
+              column(6, numericInput("wc_5", "Year 5", value = 54, min = 0, max = 100)),
+              column(6, numericInput("wc_6", "Year 6", value = 62, min = 0, max = 100))
+            ),
+            fluidRow(
+              column(6, numericInput("wc_7", "Year 7", value = 72, min = 0, max = 100)),
+              column(6, numericInput("wc_8", "Year 8", value = 82, min = 0, max = 100))
+            ),
+            fluidRow(
+              column(6, numericInput("wc_9", "Year 9", value = 90, min = 0, max = 100)),
+              column(6, numericInput("wc_10", "Year 10", value = 96, min = 0, max = 100))
+            )
+          ),
+
+          accordion_panel("Appearance", icon = icon("palette"),
+            selectInput("slug_palette", "Colour palette",
+                        choices = names(PALETTES), selected = "Classic Academic"),
+            numericInput("slug_title_size", "Title font size", value = 14, min = 8, max = 28),
+            numericInput("slug_label_size", "Axis label size", value = 11, min = 8, max = 24),
+            numericInput("slug_text_size", "Tick label size", value = 9, min = 6, max = 20),
+            sliderInput("slug_line_weight", "Line weight", min = 0.3, max = 2, value = 0.6, step = 0.1),
+            selectInput("slug_grid", "Grid lines",
+                        choices = c("None" = "none", "Major" = "major", "Y only" = "y"),
+                        selected = "y")
+          ),
+
+          accordion_panel("Export", icon = icon("download"),
+            selectInput("slug_export_preset", "Journal preset",
+                        choices = names(JOURNAL_PRESETS), selected = "Custom"),
+            fluidRow(
+              column(4, numericInput("slug_export_w", "W (in)", value = 7, min = 2, max = 16, step = 0.25)),
+              column(4, numericInput("slug_export_h", "H (in)", value = 8, min = 2, max = 16, step = 0.25)),
+              column(4, numericInput("slug_export_dpi", "DPI", value = 300, min = 72, max = 1200, step = 50))
+            ),
+            selectInput("slug_export_fmt", "Format",
+                        choices = c("SVG" = "svg", "PDF" = "pdf", "PNG" = "png",
+                                    "TIFF" = "tiff", "EPS" = "eps"),
+                        selected = "pdf"),
+            textInput("slug_export_filename", "Filename", value = "figure_slug"),
+            downloadButton("download_slug_plot", "Export", class = "btn-export w-100")
+          )
+        )
+      ),
+
+      # ── MAIN CONTENT: Sub-tabs for each figure ──────────
+      navset_card_tab(
+        id = "slug_subtab",
+
+        nav_panel("PT PIPE-1 (Fig 4.10)",
+          plotOutput("slug_plot_pt1", height = "700px")
+        ),
+
+        nav_panel("PT PIPE-7 (Fig 4.10-B)",
+          plotOutput("slug_plot_pt7", height = "700px")
+        ),
+
+        nav_panel("QLT PIPE-7 (Fig 4.11)",
+          plotOutput("slug_plot_qlt", height = "700px")
+        ),
+
+        nav_panel("Slug Frequency (Fig 4.12)",
+          plotOutput("slug_plot_freq", height = "550px")
+        ),
+
+        nav_panel("Slug Length (Fig 4.13)",
+          plotOutput("slug_plot_length", height = "550px")
+        ),
+
+        nav_panel("Amplitude Summary (Fig 4.14)",
+          plotOutput("slug_plot_amplitude", height = "550px")
+        ),
+
+        nav_panel("Metrics Table",
+          tableOutput("slug_metrics_table")
+        )
       )
     )
   )
@@ -2065,6 +2210,694 @@ server <- function(input, output, session) {
 
     p
   })
+
+  # ══════════════════════════════════════════════════════
+  #  SLUGGING CHARACTERIZATION
+  # ══════════════════════════════════════════════════════
+
+  # Reactive storage for slug data
+  slug_rv <- reactiveValues(
+    slug_data = NULL,       # list of sheets from Slug.xlsx
+    slugtrack_data = NULL,  # list of sheets from Slugtracking.xlsx
+    loaded = FALSE
+  )
+
+  # Load slug data
+  observeEvent(input$load_slug_data, {
+    tryCatch({
+      # Load Slug.xlsx
+      slug_path <- if (!is.null(input$slug_file)) input$slug_file$datapath else "Slug.xlsx"
+      if (file.exists(slug_path)) {
+        sheets <- excel_sheets(slug_path)
+        slug_rv$slug_data <- setNames(
+          lapply(sheets, function(s) {
+            as.data.frame(read_excel(slug_path, sheet = s, col_names = TRUE,
+                                     .name_repair = "minimal"))
+          }), sheets)
+      }
+
+      # Load Slugtracking.xlsx
+      st_path <- if (!is.null(input$slugtrack_file)) input$slugtrack_file$datapath else "Slugtracking.xlsx"
+      if (file.exists(st_path)) {
+        sheets2 <- excel_sheets(st_path)
+        slug_rv$slugtrack_data <- setNames(
+          lapply(sheets2, function(s) {
+            as.data.frame(read_excel(st_path, sheet = s, col_names = TRUE,
+                                     .name_repair = "minimal"))
+          }), sheets2)
+      }
+
+      slug_rv$loaded <- TRUE
+      showNotification("\u2713 Slug data loaded successfully", type = "message", duration = 4)
+    }, error = function(e) {
+      showNotification(paste0("\u2717 Error loading slug data: ", e$message), type = "error")
+    })
+  })
+
+  # Helper: extract time-series for a case from a slug sheet (paired columns)
+  extract_slug_case <- function(data_list, sheet_name, case_num, t_start, t_end) {
+    sheet <- data_list[[sheet_name]]
+    if (is.null(sheet)) return(NULL)
+    x_col <- (case_num - 1) * 2 + 1
+    y_col <- x_col + 1
+    if (y_col > ncol(sheet)) return(NULL)
+    t <- suppressWarnings(as.numeric(sheet[[x_col]]))
+    v <- suppressWarnings(as.numeric(sheet[[y_col]]))
+    valid <- !is.na(t) & !is.na(v)
+    t <- t[valid]; v <- v[valid]
+    # Apply time window
+    in_window <- t >= t_start & t <= t_end
+    if (sum(in_window) == 0) return(NULL)
+    data.frame(time = t[in_window], value = v[in_window])
+  }
+
+  # Helper: get water cuts from inputs
+  slug_water_cuts <- reactive({
+    vapply(1:10, function(i) input[[paste0("wc_", i)]] %||% WATER_CUTS[i], numeric(1))
+  })
+
+  # Helper: get selected panels
+  slug_panels <- reactive({
+    list(
+      cases = as.integer(c(input$slug_panel_a, input$slug_panel_b, input$slug_panel_c)),
+      labels = c(input$slug_label_a, input$slug_label_b, input$slug_label_c)
+    )
+  })
+
+  # Update panel labels when panel selection changes
+  observeEvent(input$slug_panel_a, {
+    wc <- slug_water_cuts()
+    yr <- as.integer(input$slug_panel_a)
+    updateTextInput(session, "slug_label_a",
+                    value = paste0("Year ", yr, " (", wc[yr], "% WC)"))
+  })
+  observeEvent(input$slug_panel_b, {
+    wc <- slug_water_cuts()
+    yr <- as.integer(input$slug_panel_b)
+    updateTextInput(session, "slug_label_b",
+                    value = paste0("Year ", yr, " (", wc[yr], "% WC)"))
+  })
+  observeEvent(input$slug_panel_c, {
+    wc <- slug_water_cuts()
+    yr <- as.integer(input$slug_panel_c)
+    updateTextInput(session, "slug_label_c",
+                    value = paste0("Year ", yr, " (", wc[yr], "% WC)"))
+  })
+
+  # Slug export preset
+  observeEvent(input$slug_export_preset, {
+    preset <- JOURNAL_PRESETS[[input$slug_export_preset]]
+    if (!is.null(preset) && input$slug_export_preset != "Custom") {
+      updateNumericInput(session, "slug_export_w", value = preset$w)
+      updateNumericInput(session, "slug_export_h", value = preset$h)
+      updateNumericInput(session, "slug_export_dpi", value = preset$dpi)
+      updateSelectInput(session, "slug_export_fmt", selected = preset$fmt)
+    }
+  })
+
+  # ── Common slug plot builder ────────────────────────────
+  # Build 3-panel stacked time-series plot
+  build_slug_timeseries <- function(data_list, sheet_name, y_label, title,
+                                     panels, t_start, t_window, pal, opts,
+                                     ref_line = NULL) {
+    t_end <- t_start + t_window
+    all_data <- list()
+
+    for (i in seq_along(panels$cases)) {
+      d <- extract_slug_case(data_list, sheet_name, panels$cases[i], t_start, t_end)
+      if (!is.null(d)) {
+        d$panel <- panels$labels[i]
+        all_data[[length(all_data) + 1]] <- d
+      }
+    }
+
+    if (length(all_data) == 0) {
+      return(ggplot() + theme_academic(base_size = 12) +
+        annotate("text", x = 0.5, y = 0.5,
+                 label = paste0("No data found in sheet: ", sheet_name),
+                 size = 5, color = "#999", fontface = "italic") +
+        xlim(0, 1) + ylim(0, 1) +
+        theme(axis.title = element_blank(), axis.text = element_blank(),
+              axis.ticks = element_blank(), panel.border = element_blank()))
+    }
+
+    plot_df <- do.call(rbind, all_data)
+    plot_df$panel <- factor(plot_df$panel, levels = panels$labels)
+
+    # Compute per-panel stats
+    stats_df <- do.call(rbind, lapply(split(plot_df, plot_df$panel), function(pd) {
+      data.frame(
+        panel = pd$panel[1],
+        mean_val = mean(pd$value, na.rm = TRUE),
+        sd_val = sd(pd$value, na.rm = TRUE),
+        min_val = min(pd$value, na.rm = TRUE),
+        max_val = max(pd$value, na.rm = TRUE),
+        pp_amp = max(pd$value, na.rm = TRUE) - min(pd$value, na.rm = TRUE),
+        stringsAsFactors = FALSE
+      )
+    }))
+    stats_df$panel <- factor(stats_df$panel, levels = panels$labels)
+
+    p <- ggplot(plot_df, aes(x = time, y = value)) +
+      geom_line(color = pal[1], linewidth = opts$lw) +
+      facet_wrap(~ panel, ncol = 1, scales = "free_y") +
+      theme_academic(base_size = opts$text_size, grid = opts$grid,
+                     border = TRUE, ticks_inward = TRUE) +
+      theme(
+        strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
+        strip.text = element_text(size = opts$label_size * 0.9, face = "bold",
+                                   color = "#1a1714", margin = margin(t = 4, b = 4)),
+        panel.spacing = unit(14, "pt"),
+        plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
+                                   margin = margin(b = 8)),
+        axis.title = element_text(size = opts$label_size),
+        axis.text = element_text(size = opts$text_size)
+      ) +
+      labs(x = "Time [s]", y = y_label, title = title)
+
+    # Add mean line and annotation per panel
+    p <- p +
+      geom_hline(data = stats_df, aes(yintercept = mean_val),
+                 linetype = "dashed", color = pal[2], linewidth = 0.4) +
+      geom_label(data = stats_df,
+                 aes(x = t_start + t_window * 0.98, y = max_val,
+                     label = sprintf("Mean: %.2f\n\u0394P: %.2f\n\u03c3: %.3f",
+                                     mean_val, pp_amp, sd_val)),
+                 hjust = 1, vjust = 1, size = 2.5, color = pal[4 %% length(pal) + 1],
+                 fill = alpha("white", 0.92), label.size = 0.2,
+                 label.padding = unit(3, "pt"), lineheight = 1.2)
+
+    # Optional reference line
+    if (!is.null(ref_line)) {
+      p <- p + geom_hline(yintercept = ref_line$value, linetype = "dotted",
+                           color = ref_line$color, linewidth = 0.5)
+    }
+
+    p
+  }
+
+  # ── Fig 4.10: PT PIPE 1 ────────────────────────────────
+  output$slug_plot_pt1 <- renderPlot({
+    req(slug_rv$loaded)
+    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    opts <- list(
+      lw = input$slug_line_weight %||% 0.6,
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "y"
+    )
+    build_slug_timeseries(
+      slug_rv$slug_data, "PT PIPE 1 Trend",
+      "Pressure [bara]",
+      "Pressure Oscillations at Pipeline Inlet (PIPE-1)",
+      slug_panels(),
+      input$slug_t_start %||% 0,
+      input$slug_t_window %||% 600,
+      pal, opts
+    )
+  }, res = 96)
+
+  # ── Fig 4.10-B: PT PIPE 7 ──────────────────────────────
+  output$slug_plot_pt7 <- renderPlot({
+    req(slug_rv$loaded)
+    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    opts <- list(
+      lw = input$slug_line_weight %||% 0.6,
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "y"
+    )
+    build_slug_timeseries(
+      slug_rv$slug_data, "PT PIPE 7 Trend",
+      "Pressure [bara]",
+      "Pressure Oscillations at Separator Inlet (PIPE-7)",
+      slug_panels(),
+      input$slug_t_start %||% 0,
+      input$slug_t_window %||% 600,
+      pal, opts
+    )
+  }, res = 96)
+
+  # ── Fig 4.11: QLT PIPE 7 ───────────────────────────────
+  output$slug_plot_qlt <- renderPlot({
+    req(slug_rv$loaded)
+    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    opts <- list(
+      lw = input$slug_line_weight %||% 0.6,
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "y"
+    )
+    build_slug_timeseries(
+      slug_rv$slug_data, "QLT PIPE 7 Trend",
+      expression(paste("Liquid Flow Rate [m"^"3", "/d]")),
+      "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
+      slug_panels(),
+      input$slug_t_start %||% 0,
+      input$slug_t_window %||% 600,
+      pal, opts
+    )
+  }, res = 96)
+
+  # ── Fig 4.12: Slug Frequency ────────────────────────────
+  output$slug_plot_freq <- renderPlot({
+    req(slug_rv$loaded, slug_rv$slugtrack_data)
+    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    opts <- list(
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "y"
+    )
+    wc <- slug_water_cuts()
+
+    # Extract NSLUG for each case: slug frequency = max(NSLUG) / total_time * 3600
+    sheet <- slug_rv$slugtrack_data[["NSLUG Trend"]]
+    if (is.null(sheet)) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+        label = "NSLUG Trend sheet not found", size = 5, color = "#999") +
+        xlim(0, 1) + ylim(0, 1) + theme_void())
+    }
+
+    freq_data <- data.frame(year = integer(), wc = numeric(), freq = numeric())
+    for (i in 1:10) {
+      x_col <- (i - 1) * 2 + 1
+      y_col <- x_col + 1
+      if (y_col > ncol(sheet)) next
+      t <- suppressWarnings(as.numeric(sheet[[x_col]]))
+      n <- suppressWarnings(as.numeric(sheet[[y_col]]))
+      valid <- !is.na(t) & !is.na(n)
+      t <- t[valid]; n <- n[valid]
+      if (length(t) < 2) next
+
+      total_time_s <- max(t) - min(t)
+      # Slug frequency: count how many new slugs appear per hour
+      # NSLUG is cumulative count, so frequency = delta_NSLUG / delta_time * 3600
+      delta_n <- max(n) - min(n)
+      slugs_per_hour <- if (total_time_s > 0) delta_n / total_time_s * 3600 else 0
+
+      freq_data <- rbind(freq_data, data.frame(year = i, wc = wc[i], freq = slugs_per_hour))
+    }
+
+    if (nrow(freq_data) == 0) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+        label = "No NSLUG data available", size = 5, color = "#999") +
+        xlim(0, 1) + ylim(0, 1) + theme_void())
+    }
+
+    p <- ggplot(freq_data, aes(x = wc, y = freq)) +
+      geom_col(fill = pal[1], color = "black", width = 4, linewidth = 0.3) +
+      geom_smooth(method = "lm", formula = y ~ poly(x, 2), se = FALSE,
+                  color = pal[2], linetype = "dashed", linewidth = 0.7) +
+      geom_point(size = 2.5, color = pal[1], shape = 21, fill = pal[1], stroke = 0.5) +
+      geom_text(aes(label = paste0("Y", year)), vjust = -0.8, size = 2.8, color = "#555") +
+      theme_academic(base_size = opts$text_size, grid = opts$grid,
+                     border = TRUE, ticks_inward = TRUE) +
+      theme(
+        plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
+                                   margin = margin(b = 8)),
+        axis.title = element_text(size = opts$label_size),
+        axis.text = element_text(size = opts$text_size)
+      ) +
+      labs(x = "Water Cut [%]", y = "Slug Frequency [slugs/hour]",
+           title = "Slug Frequency Trend Over Field Life") +
+      scale_x_continuous(breaks = wc, expand = expansion(mult = 0.08))
+
+    p
+  }, res = 96)
+
+  # ── Fig 4.13: Slug Body Length ──────────────────────────
+  output$slug_plot_length <- renderPlot({
+    req(slug_rv$loaded, slug_rv$slugtrack_data)
+    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    opts <- list(
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "y"
+    )
+    wc <- slug_water_cuts()
+
+    sheet <- slug_rv$slugtrack_data[["LSLEXP PIPE 6 Trend"]]
+    if (is.null(sheet)) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+        label = "LSLEXP PIPE 6 Trend sheet not found", size = 5, color = "#999") +
+        xlim(0, 1) + ylim(0, 1) + theme_void())
+    }
+
+    # Selected years for box plot: 1, 3, 5, 7, 10
+    sel_years <- c(1, 3, 5, 7, 10)
+    all_data <- list()
+    for (yr in sel_years) {
+      x_col <- (yr - 1) * 2 + 1
+      y_col <- x_col + 1
+      if (y_col > ncol(sheet)) next
+      v <- suppressWarnings(as.numeric(sheet[[y_col]]))
+      v <- v[!is.na(v) & v > 0]  # exclude zero-length entries
+      if (length(v) == 0) next
+      all_data[[length(all_data) + 1]] <- data.frame(
+        year_label = paste0("Year ", yr, "\n(", wc[yr], "% WC)"),
+        year = yr,
+        length = v,
+        stringsAsFactors = FALSE
+      )
+    }
+
+    if (length(all_data) == 0) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+        label = "No slug length data available", size = 5, color = "#999") +
+        xlim(0, 1) + ylim(0, 1) + theme_void())
+    }
+
+    plot_df <- do.call(rbind, all_data)
+    plot_df$year_label <- factor(plot_df$year_label,
+      levels = paste0("Year ", sel_years, "\n(", wc[sel_years], "% WC)"))
+
+    p <- ggplot(plot_df, aes(x = year_label, y = length)) +
+      geom_violin(fill = alpha(pal[1], 0.15), color = pal[1], linewidth = 0.4) +
+      geom_boxplot(width = 0.15, fill = alpha(pal[2], 0.3), color = pal[2],
+                   outlier.size = 1, outlier.alpha = 0.5) +
+      stat_summary(fun = mean, geom = "point", shape = 23, size = 3,
+                   fill = pal[3], color = "black", stroke = 0.5) +
+      theme_academic(base_size = opts$text_size, grid = opts$grid,
+                     border = TRUE, ticks_inward = TRUE) +
+      theme(
+        plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
+                                   margin = margin(b = 8)),
+        axis.title = element_text(size = opts$label_size),
+        axis.text = element_text(size = opts$text_size),
+        axis.text.x = element_text(lineheight = 1.1)
+      ) +
+      labs(x = NULL, y = "Slug Body Length [m]",
+           title = "Slug Body Length Distribution")
+
+    p
+  }, res = 96)
+
+  # ── Fig 4.14: Oscillation Amplitude Summary ─────────────
+  output$slug_plot_amplitude <- renderPlot({
+    req(slug_rv$loaded)
+    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    opts <- list(
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "y"
+    )
+    wc <- slug_water_cuts()
+
+    # Calculate peak-to-peak amplitudes for all 10 years
+    # Use full data range (720s window as per spec) or available data
+    amp_data <- data.frame(year = integer(), wc = numeric(),
+                           pt1_amp = numeric(), pt7_amp = numeric(), qlt_amp = numeric())
+
+    for (i in 1:10) {
+      pt1_d <- extract_slug_case(slug_rv$slug_data, "PT PIPE 1 Trend", i, 0, 7200)
+      pt7_d <- extract_slug_case(slug_rv$slug_data, "PT PIPE 7 Trend", i, 0, 7200)
+      qlt_d <- extract_slug_case(slug_rv$slug_data, "QLT PIPE 7 Trend", i, 0, 7200)
+
+      pt1_amp <- if (!is.null(pt1_d)) max(pt1_d$value) - min(pt1_d$value) else NA
+      pt7_amp <- if (!is.null(pt7_d)) max(pt7_d$value) - min(pt7_d$value) else NA
+      qlt_amp <- if (!is.null(qlt_d)) max(qlt_d$value) - min(qlt_d$value) else NA
+
+      amp_data <- rbind(amp_data, data.frame(
+        year = i, wc = wc[i],
+        pt1_amp = pt1_amp, pt7_amp = pt7_amp, qlt_amp = qlt_amp
+      ))
+    }
+
+    # Reshape for grouped bar chart
+    # Left axis: PT amplitudes (bara); Right axis: QLT amplitude (m3/d)
+    bar_df <- rbind(
+      data.frame(year = amp_data$year, wc = amp_data$wc,
+                 value = amp_data$pt1_amp, metric = "PT PIPE-1 (bara)",
+                 stringsAsFactors = FALSE),
+      data.frame(year = amp_data$year, wc = amp_data$wc,
+                 value = amp_data$pt7_amp, metric = "PT PIPE-7 (bara)",
+                 stringsAsFactors = FALSE),
+      data.frame(year = amp_data$year, wc = amp_data$wc,
+                 value = amp_data$qlt_amp, metric = expression(paste("QLT PIPE-7 (m"^"3", "/d)")),
+                 stringsAsFactors = FALSE)
+    )
+    bar_df <- bar_df[!is.na(bar_df$value), ]
+
+    if (nrow(bar_df) == 0) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+        label = "No amplitude data available", size = 5, color = "#999") +
+        xlim(0, 1) + ylim(0, 1) + theme_void())
+    }
+
+    # Since QLT values are much larger than PT, use faceted layout
+    # with free y-scales instead of dual-axis (cleaner for publication)
+    bar_df$metric <- factor(bar_df$metric,
+      levels = c("PT PIPE-1 (bara)", "PT PIPE-7 (bara)",
+                 "QLT PIPE-7 (m\u00b3/d)"))
+    bar_df$year_label <- paste0("Y", bar_df$year)
+    bar_df$year_label <- factor(bar_df$year_label, levels = paste0("Y", 1:10))
+
+    p <- ggplot(bar_df, aes(x = year_label, y = value, fill = metric)) +
+      geom_col(position = position_dodge(width = 0.8), width = 0.7,
+               color = "black", linewidth = 0.2) +
+      facet_wrap(~ metric, ncol = 1, scales = "free_y") +
+      scale_fill_manual(values = setNames(pal[1:3],
+        c("PT PIPE-1 (bara)", "PT PIPE-7 (bara)", "QLT PIPE-7 (m\u00b3/d)"))) +
+      theme_academic(base_size = opts$text_size, grid = opts$grid,
+                     border = TRUE, ticks_inward = TRUE) +
+      theme(
+        strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
+        strip.text = element_text(size = opts$label_size * 0.85, face = "bold",
+                                   color = "#1a1714", margin = margin(t = 4, b = 4)),
+        panel.spacing = unit(12, "pt"),
+        plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
+                                   margin = margin(b = 8)),
+        axis.title = element_text(size = opts$label_size),
+        axis.text = element_text(size = opts$text_size),
+        legend.position = "none"
+      ) +
+      labs(x = "Production Year", y = "Peak-to-Peak Amplitude",
+           title = "Oscillation Amplitude Summary Across Field Life")
+
+    p
+  }, res = 96)
+
+  # ── Metrics Table ───────────────────────────────────────
+  output$slug_metrics_table <- renderTable({
+    req(slug_rv$loaded)
+    wc <- slug_water_cuts()
+
+    metrics <- data.frame(
+      Year = integer(), `Water Cut (%)` = numeric(),
+      `PT1 Mean (bara)` = numeric(), `PT1 Std (bar)` = numeric(), `PT1 P-P (bar)` = numeric(),
+      `PT7 Mean (bara)` = numeric(), `PT7 Std (bar)` = numeric(), `PT7 P-P (bar)` = numeric(),
+      `QLT Mean (m3/d)` = numeric(), `QLT Std (m3/d)` = numeric(), `QLT P-P (m3/d)` = numeric(),
+      check.names = FALSE, stringsAsFactors = FALSE
+    )
+
+    for (i in 1:10) {
+      pt1_d <- extract_slug_case(slug_rv$slug_data, "PT PIPE 1 Trend", i, 0, 7200)
+      pt7_d <- extract_slug_case(slug_rv$slug_data, "PT PIPE 7 Trend", i, 0, 7200)
+      qlt_d <- extract_slug_case(slug_rv$slug_data, "QLT PIPE 7 Trend", i, 0, 7200)
+
+      row <- data.frame(
+        Year = i,
+        `Water Cut (%)` = wc[i],
+        `PT1 Mean (bara)` = if (!is.null(pt1_d)) round(mean(pt1_d$value), 2) else NA,
+        `PT1 Std (bar)` = if (!is.null(pt1_d)) round(sd(pt1_d$value), 3) else NA,
+        `PT1 P-P (bar)` = if (!is.null(pt1_d)) round(max(pt1_d$value) - min(pt1_d$value), 3) else NA,
+        `PT7 Mean (bara)` = if (!is.null(pt7_d)) round(mean(pt7_d$value), 2) else NA,
+        `PT7 Std (bar)` = if (!is.null(pt7_d)) round(sd(pt7_d$value), 3) else NA,
+        `PT7 P-P (bar)` = if (!is.null(pt7_d)) round(max(pt7_d$value) - min(pt7_d$value), 3) else NA,
+        `QLT Mean (m3/d)` = if (!is.null(qlt_d)) round(mean(qlt_d$value), 1) else NA,
+        `QLT Std (m3/d)` = if (!is.null(qlt_d)) round(sd(qlt_d$value), 1) else NA,
+        `QLT P-P (m3/d)` = if (!is.null(qlt_d)) round(max(qlt_d$value) - min(qlt_d$value), 1) else NA,
+        check.names = FALSE, stringsAsFactors = FALSE
+      )
+      metrics <- rbind(metrics, row)
+    }
+
+    metrics
+  }, striped = TRUE, hover = TRUE, bordered = TRUE, spacing = "s", width = "100%", digits = 3)
+
+  # ── Slug plot builder for active tab (used by export) ───
+  build_slug_active_plot <- reactive({
+    req(slug_rv$loaded)
+    tab <- input$slug_subtab
+    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    opts <- list(
+      lw = input$slug_line_weight %||% 0.6,
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "y"
+    )
+
+    if (tab == "PT PIPE-1 (Fig 4.10)") {
+      build_slug_timeseries(slug_rv$slug_data, "PT PIPE 1 Trend",
+        "Pressure [bara]", "Pressure Oscillations at Pipeline Inlet (PIPE-1)",
+        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 600, pal, opts)
+    } else if (tab == "PT PIPE-7 (Fig 4.10-B)") {
+      build_slug_timeseries(slug_rv$slug_data, "PT PIPE 7 Trend",
+        "Pressure [bara]", "Pressure Oscillations at Separator Inlet (PIPE-7)",
+        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 600, pal, opts)
+    } else if (tab == "QLT PIPE-7 (Fig 4.11)") {
+      build_slug_timeseries(slug_rv$slug_data, "QLT PIPE 7 Trend",
+        expression(paste("Liquid Flow Rate [m"^"3", "/d]")),
+        "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
+        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 600, pal, opts)
+    } else {
+      # For the other tabs, return NULL (they use independent renderPlot)
+      NULL
+    }
+  })
+
+  # ── Slug Export ─────────────────────────────────────────
+  output$download_slug_plot <- downloadHandler(
+    filename = function() {
+      paste0(input$slug_export_filename, ".", input$slug_export_fmt)
+    },
+    content = function(file) {
+      # Re-render the active tab's plot
+      tab <- input$slug_subtab
+      pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+      opts <- list(
+        lw = input$slug_line_weight %||% 0.6,
+        title_size = input$slug_title_size %||% 14,
+        label_size = input$slug_label_size %||% 11,
+        text_size = input$slug_text_size %||% 9,
+        grid = input$slug_grid %||% "y"
+      )
+      wc <- slug_water_cuts()
+
+      p <- if (tab == "PT PIPE-1 (Fig 4.10)") {
+        build_slug_timeseries(slug_rv$slug_data, "PT PIPE 1 Trend",
+          "Pressure [bara]", "Pressure Oscillations at Pipeline Inlet (PIPE-1)",
+          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 600, pal, opts)
+      } else if (tab == "PT PIPE-7 (Fig 4.10-B)") {
+        build_slug_timeseries(slug_rv$slug_data, "PT PIPE 7 Trend",
+          "Pressure [bara]", "Pressure Oscillations at Separator Inlet (PIPE-7)",
+          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 600, pal, opts)
+      } else if (tab == "QLT PIPE-7 (Fig 4.11)") {
+        build_slug_timeseries(slug_rv$slug_data, "QLT PIPE 7 Trend",
+          "Liquid Flow Rate [m\u00b3/d]",
+          "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
+          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 600, pal, opts)
+      } else if (tab == "Slug Frequency (Fig 4.12)") {
+        # Rebuild frequency plot
+        sheet <- slug_rv$slugtrack_data[["NSLUG Trend"]]
+        if (is.null(sheet)) return()
+        freq_data <- data.frame(year = integer(), wc = numeric(), freq = numeric())
+        for (i in 1:10) {
+          x_col <- (i - 1) * 2 + 1; y_col <- x_col + 1
+          if (y_col > ncol(sheet)) next
+          t <- suppressWarnings(as.numeric(sheet[[x_col]]))
+          n <- suppressWarnings(as.numeric(sheet[[y_col]]))
+          valid <- !is.na(t) & !is.na(n); t <- t[valid]; n <- n[valid]
+          if (length(t) < 2) next
+          total_time_s <- max(t) - min(t)
+          delta_n <- max(n) - min(n)
+          slugs_per_hour <- if (total_time_s > 0) delta_n / total_time_s * 3600 else 0
+          freq_data <- rbind(freq_data, data.frame(year = i, wc = wc[i], freq = slugs_per_hour))
+        }
+        if (nrow(freq_data) == 0) return()
+        ggplot(freq_data, aes(x = wc, y = freq)) +
+          geom_col(fill = pal[1], color = "black", width = 4, linewidth = 0.3) +
+          geom_smooth(method = "lm", formula = y ~ poly(x, 2), se = FALSE,
+                      color = pal[2], linetype = "dashed", linewidth = 0.7) +
+          geom_point(size = 2.5, color = pal[1], shape = 21, fill = pal[1], stroke = 0.5) +
+          geom_text(aes(label = paste0("Y", year)), vjust = -0.8, size = 2.8, color = "#555") +
+          theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
+          theme(plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5),
+                axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size)) +
+          labs(x = "Water Cut [%]", y = "Slug Frequency [slugs/hour]",
+               title = "Slug Frequency Trend Over Field Life") +
+          scale_x_continuous(breaks = wc, expand = expansion(mult = 0.08))
+      } else if (tab == "Slug Length (Fig 4.13)") {
+        sheet <- slug_rv$slugtrack_data[["LSLEXP PIPE 6 Trend"]]
+        if (is.null(sheet)) return()
+        sel_years <- c(1, 3, 5, 7, 10)
+        all_data <- list()
+        for (yr in sel_years) {
+          y_col <- (yr - 1) * 2 + 2
+          if (y_col > ncol(sheet)) next
+          v <- suppressWarnings(as.numeric(sheet[[y_col]]))
+          v <- v[!is.na(v) & v > 0]
+          if (length(v) == 0) next
+          all_data[[length(all_data) + 1]] <- data.frame(
+            year_label = paste0("Year ", yr, "\n(", wc[yr], "% WC)"), year = yr, length = v)
+        }
+        if (length(all_data) == 0) return()
+        plot_df <- do.call(rbind, all_data)
+        plot_df$year_label <- factor(plot_df$year_label,
+          levels = paste0("Year ", sel_years, "\n(", wc[sel_years], "% WC)"))
+        ggplot(plot_df, aes(x = year_label, y = length)) +
+          geom_violin(fill = alpha(pal[1], 0.15), color = pal[1], linewidth = 0.4) +
+          geom_boxplot(width = 0.15, fill = alpha(pal[2], 0.3), color = pal[2],
+                       outlier.size = 1, outlier.alpha = 0.5) +
+          stat_summary(fun = mean, geom = "point", shape = 23, size = 3,
+                       fill = pal[3], color = "black", stroke = 0.5) +
+          theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
+          theme(plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5),
+                axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size)) +
+          labs(x = NULL, y = "Slug Body Length [m]", title = "Slug Body Length Distribution")
+      } else if (tab == "Amplitude Summary (Fig 4.14)") {
+        amp_data <- data.frame(year = integer(), wc = numeric(),
+                               pt1_amp = numeric(), pt7_amp = numeric(), qlt_amp = numeric())
+        for (i in 1:10) {
+          pt1_d <- extract_slug_case(slug_rv$slug_data, "PT PIPE 1 Trend", i, 0, 7200)
+          pt7_d <- extract_slug_case(slug_rv$slug_data, "PT PIPE 7 Trend", i, 0, 7200)
+          qlt_d <- extract_slug_case(slug_rv$slug_data, "QLT PIPE 7 Trend", i, 0, 7200)
+          amp_data <- rbind(amp_data, data.frame(
+            year = i, wc = wc[i],
+            pt1_amp = if (!is.null(pt1_d)) max(pt1_d$value) - min(pt1_d$value) else NA,
+            pt7_amp = if (!is.null(pt7_d)) max(pt7_d$value) - min(pt7_d$value) else NA,
+            qlt_amp = if (!is.null(qlt_d)) max(qlt_d$value) - min(qlt_d$value) else NA))
+        }
+        bar_df <- rbind(
+          data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$pt1_amp, metric = "PT PIPE-1 (bara)"),
+          data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$pt7_amp, metric = "PT PIPE-7 (bara)"),
+          data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$qlt_amp, metric = "QLT PIPE-7 (m\u00b3/d)"))
+        bar_df <- bar_df[!is.na(bar_df$value), ]
+        if (nrow(bar_df) == 0) return()
+        bar_df$metric <- factor(bar_df$metric, levels = c("PT PIPE-1 (bara)", "PT PIPE-7 (bara)", "QLT PIPE-7 (m\u00b3/d)"))
+        bar_df$year_label <- factor(paste0("Y", bar_df$year), levels = paste0("Y", 1:10))
+        ggplot(bar_df, aes(x = year_label, y = value, fill = metric)) +
+          geom_col(position = position_dodge(width = 0.8), width = 0.7, color = "black", linewidth = 0.2) +
+          facet_wrap(~ metric, ncol = 1, scales = "free_y") +
+          scale_fill_manual(values = setNames(pal[1:3],
+            c("PT PIPE-1 (bara)", "PT PIPE-7 (bara)", "QLT PIPE-7 (m\u00b3/d)"))) +
+          theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
+          theme(strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
+                strip.text = element_text(size = opts$label_size * 0.85, face = "bold"),
+                plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5),
+                axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size),
+                legend.position = "none") +
+          labs(x = "Production Year", y = "Peak-to-Peak Amplitude",
+               title = "Oscillation Amplitude Summary Across Field Life")
+      } else {
+        NULL
+      }
+
+      if (is.null(p)) {
+        showNotification("Select a figure tab to export", type = "warning")
+        return()
+      }
+
+      w <- input$slug_export_w %||% 7
+      h <- input$slug_export_h %||% 8
+      dpi <- input$slug_export_dpi %||% 300
+      fmt <- input$slug_export_fmt %||% "pdf"
+
+      if (fmt == "eps") {
+        ggsave(file, plot = p, width = w, height = h, device = cairo_ps, bg = "white")
+      } else {
+        ggsave(file, plot = p, width = w, height = h, dpi = dpi,
+               device = fmt, bg = "white")
+      }
+    }
+  )
 
   # ══════════════════════════════════════════════════════
   #  RENDER PLOTS
