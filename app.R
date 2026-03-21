@@ -2375,9 +2375,17 @@ server <- function(input, output, session) {
     }))
     stats_df$panel <- factor(stats_df$panel, levels = panels$labels)
 
-    p <- ggplot(plot_df, aes(x = time, y = value)) +
-      geom_line(color = pal[1], linewidth = opts$lw) +
+    # Assign one color per panel (matching reference profile matrix style)
+    panel_levels <- levels(plot_df$panel)
+    color_map <- setNames(
+      pal[((seq_along(panel_levels) - 1) %% length(pal)) + 1],
+      panel_levels
+    )
+
+    p <- ggplot(plot_df, aes(x = time, y = value, color = panel)) +
+      geom_line(linewidth = opts$lw, show.legend = FALSE) +
       facet_wrap(~ panel, ncol = 1, scales = "free_y") +
+      scale_color_manual(values = color_map) +
       theme_academic(base_size = opts$text_size, grid = opts$grid,
                      border = TRUE, ticks_inward = TRUE) +
       theme(
@@ -2442,14 +2450,17 @@ server <- function(input, output, session) {
       stats_df$ann_vjust <- if (grepl("bottom", ann_pos)) 0 else 1
     }
 
+    # Add per-panel color to stats_df for mean lines and labels
+    stats_df$panel_color <- color_map[as.character(stats_df$panel)]
+
     p <- p +
       geom_hline(data = stats_df, aes(yintercept = mean_val),
-                 linetype = "dashed", color = pal[2], linewidth = 0.4) +
+                 linetype = "dashed", color = stats_df$panel_color, linewidth = 0.4) +
       geom_label(data = stats_df,
                  aes(x = ann_x, y = ann_y,
                      label = ann_label, hjust = ann_hjust, vjust = ann_vjust),
                  size = 2.5,
-                 color = pal[4 %% length(pal) + 1],
+                 color = stats_df$panel_color,
                  fill = alpha("white", 0.92), label.size = 0.2,
                  label.padding = unit(3, "pt"), lineheight = 1.2)
 
@@ -2607,17 +2618,29 @@ server <- function(input, output, session) {
     corner_results$panel <- factor(corner_results$panel, levels = levels(plot_df$panel))
     stats_df <- merge(stats_df, corner_results, by = "panel")
 
-    p <- ggplot(plot_df, aes(x = time, y = value)) +
-      geom_line(color = pal[1], linewidth = opts$lw * 0.8) +
-      facet_wrap(~ panel, ncol = 4, scales = "free_y") +
+    # Assign one color per panel (matching reference profile matrix style)
+    panel_levels <- levels(plot_df$panel)
+    color_map <- setNames(
+      pal[((seq_along(panel_levels) - 1) %% length(pal)) + 1],
+      panel_levels
+    )
+
+    # Add per-panel color to stats_df for mean lines
+    stats_df$panel_color <- color_map[as.character(stats_df$panel)]
+
+    p <- ggplot(plot_df, aes(x = time, y = value, color = panel)) +
+      geom_line(linewidth = opts$lw * 0.8, show.legend = FALSE) +
+      facet_wrap(~ panel, ncol = 5, scales = "fixed") +
+      scale_color_manual(values = color_map) +
       geom_hline(data = stats_df, aes(yintercept = mean_val),
-                 linetype = "dashed", color = pal[2], linewidth = 0.3) +
+                 linetype = "dashed", color = stats_df$panel_color, linewidth = 0.3) +
       geom_label(data = stats_df,
                  aes(x = ann_x, y = ann_y,
                      label = ann_label, hjust = ann_hjust, vjust = ann_vjust),
-                 size = 2.2, color = pal[4 %% length(pal) + 1],
+                 size = 2.2, color = stats_df$panel_color,
                  fill = alpha("white", 0.92), label.size = 0.15,
-                 label.padding = unit(3, "pt"), lineheight = 1.1) +
+                 label.padding = unit(3, "pt"), lineheight = 1.1,
+                 show.legend = FALSE) +
       theme_academic(base_size = opts$text_size * 0.85, grid = opts$grid,
                      border = TRUE, ticks_inward = TRUE) +
       theme(
