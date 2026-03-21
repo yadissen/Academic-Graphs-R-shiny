@@ -2949,6 +2949,7 @@ server <- function(input, output, session) {
       facet_wrap(~ metric, ncol = 1, scales = "free_y") +
       scale_fill_manual(values = setNames(pal[1:3],
         c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)", "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))) +
+      scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
       theme_academic(base_size = opts$text_size, grid = opts$grid,
                      border = TRUE, ticks_inward = TRUE) +
       theme(
@@ -3221,6 +3222,7 @@ server <- function(input, output, session) {
           facet_wrap(~ metric, ncol = 1, scales = "free_y") +
           scale_fill_manual(values = setNames(pal[1:3],
             c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)", "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))) +
+          scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
           theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
           theme(strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
                 strip.text = element_text(size = opts$label_size * 0.85, face = "bold"),
