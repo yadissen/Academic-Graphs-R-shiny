@@ -452,6 +452,46 @@ ui <- page_navbar(
             )
           ),
 
+          # ── MULTI-PANEL PLOTS (Holdup / Velocity) ─────────
+          accordion_panel("Multi-Panel Plots", icon = icon("grip"),
+            helpText("Create multi-panel holdup or velocity profiles combining data from multiple sheets.",
+                     style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
+            selectInput("multi_plot_type", "Plot type",
+                        choices = c("Liquid Holdup Profiles" = "holdup",
+                                    "Velocity & Slip Ratio" = "velocity",
+                                    "Holdup \u2014 All Years (2\u00d75)" = "holdup_all",
+                                    "Velocity & Slip \u2014 Years 1\u20135" = "velocity_1_5",
+                                    "Velocity & Slip \u2014 Years 6\u201310" = "velocity_6_10")),
+            conditionalPanel(
+              "input.multi_plot_type == 'holdup' || input.multi_plot_type == 'velocity'",
+              tags$p("Select 3 cases for the 3 panels:",
+                     style = "font-size:0.68rem;color:#7a7060;font-weight:600;margin-bottom:4px;"),
+              fluidRow(
+                column(4,
+                  numericInput("mp_case1", "Case #", value = 1, min = 1, max = 10, step = 1),
+                  textInput("mp_label1", "Label", value = "Year 1")
+                ),
+                column(4,
+                  numericInput("mp_case2", "Case #", value = 5, min = 1, max = 10, step = 1),
+                  textInput("mp_label2", "Label", value = "Year 5")
+                ),
+                column(4,
+                  numericInput("mp_case3", "Case #", value = 10, min = 1, max = 10, step = 1),
+                  textInput("mp_label3", "Label", value = "Year 10")
+                )
+              )
+            ),
+            conditionalPanel(
+              "input.multi_plot_type == 'holdup_all' || input.multi_plot_type == 'velocity_1_5' || input.multi_plot_type == 'velocity_6_10'",
+              helpText("Cases and labels are auto-assigned for appendix layouts.",
+                       style = "font-size:0.62rem;color:#999;font-style:italic;")
+            ),
+            actionButton("generate_multi", "Generate multi-panel plot",
+                         class = "btn-academic w-100", icon = icon("chart-line")),
+            actionButton("exit_multi", "Exit multi-panel mode",
+                         class = "btn-ghost w-100 mt-2", icon = icon("arrow-left"))
+          ),
+
           # ── LEGEND ─────────────────────────────────────────
           accordion_panel("Legend", icon = icon("list"),
             selectInput("legend_pos", "Position",
@@ -587,6 +627,9 @@ server <- function(input, output, session) {
     plot_counter   = 0,        # force refresh
     extraction_mode = FALSE,
     extraction_data = NULL,
+    multi_panel_mode = FALSE,
+    multi_panel_data = NULL,
+    multi_panel_type = NULL,
     series_panel_ver = 0L      # increment to re-render series panel (structural changes only)
   )
 
@@ -1052,6 +1095,169 @@ server <- function(input, output, session) {
     })
   })
 
+  # ══════════════════════════════════════════════════════
+  #  MULTI-PANEL PLOTS (Holdup / Velocity)
+  # ══════════════════════════════════════════════════════
+
+  observeEvent(input$generate_multi, {
+    req(rv$raw_data)
+    plot_type <- input$multi_plot_type
+
+    # Helper: extract x,y for a given case from a sheet (paired columns)
+    extract_case <- function(sheet_name, case_num) {
+      sheet <- rv$raw_data[[sheet_name]]
+      if (is.null(sheet)) return(NULL)
+      x_col <- (case_num - 1) * 2 + 1
+      y_col <- x_col + 1
+      if (y_col > ncol(sheet)) return(NULL)
+      x <- suppressWarnings(as.numeric(sheet[[x_col]]))
+      y <- suppressWarnings(as.numeric(sheet[[y_col]]))
+      valid <- !is.na(x) & !is.na(y)
+      data.frame(x = x[valid], y = y[valid])
+    }
+
+    # ── Resolve cases & labels based on plot type ──────
+    is_holdup_type  <- plot_type %in% c("holdup", "holdup_all")
+    is_velocity_type <- plot_type %in% c("velocity", "velocity_1_5", "velocity_6_10")
+
+    if (plot_type == "holdup") {
+      cases  <- c(input$mp_case1, input$mp_case2, input$mp_case3)
+      labels <- c(input$mp_label1, input$mp_label2, input$mp_label3)
+    } else if (plot_type == "velocity") {
+      cases  <- c(input$mp_case1, input$mp_case2, input$mp_case3)
+      labels <- c(input$mp_label1, input$mp_label2, input$mp_label3)
+    } else if (plot_type == "holdup_all") {
+      cases  <- 1:10
+      labels <- paste("Year", 1:10)
+    } else if (plot_type == "velocity_1_5") {
+      cases  <- 1:5
+      labels <- paste("Year", 1:5)
+    } else if (plot_type == "velocity_6_10") {
+      cases  <- 6:10
+      labels <- paste("Year", 6:10)
+    }
+
+    # ── Build holdup data ──────────────────────────────
+    if (is_holdup_type) {
+      required <- c("Liquid holdup", "Water holdup", "Oil holdup")
+      missing <- setdiff(required, names(rv$raw_data))
+      if (length(missing) > 0) {
+        showNotification(paste("\u2717 Missing sheets:", paste(missing, collapse = ", ")),
+                         type = "error")
+        return()
+      }
+
+      all_data <- list()
+      for (i in seq_along(cases)) {
+        hol  <- extract_case("Liquid holdup", cases[i])
+        holwt <- extract_case("Water holdup", cases[i])
+        holhl <- extract_case("Oil holdup",   cases[i])
+
+        if (!is.null(hol)) {
+          hol$variable <- "Total Liquid (HOL)"
+          hol$panel <- labels[i]
+          all_data[[length(all_data) + 1]] <- hol
+        }
+        if (!is.null(holwt)) {
+          holwt$variable <- "Water (HOLWT)"
+          holwt$panel <- labels[i]
+          all_data[[length(all_data) + 1]] <- holwt
+        }
+        if (!is.null(holhl)) {
+          holhl$variable <- "Oil (HOLHL)"
+          holhl$panel <- labels[i]
+          all_data[[length(all_data) + 1]] <- holhl
+        }
+      }
+
+      plot_df <- do.call(rbind, all_data)
+      plot_df$panel <- factor(plot_df$panel, levels = labels)
+      plot_df$variable <- factor(plot_df$variable,
+                                  levels = c("Total Liquid (HOL)", "Water (HOLWT)", "Oil (HOLHL)"))
+
+      rv$multi_panel_data <- plot_df
+      rv$multi_panel_type <- plot_type
+
+      title <- if (plot_type == "holdup_all") "Liquid Holdup Profiles \u2014 All Years"
+               else "Liquid Holdup Profiles"
+      updateTextInput(session, "chart_title", value = title)
+      updateTextInput(session, "xlabel", value = "Pipeline Distance [m]")
+      updateTextInput(session, "ylabel", value = "Holdup Fraction [-]")
+
+    # ── Build velocity data ────────────────────────────
+    } else if (is_velocity_type) {
+      required <- c("Liquid Velocity", "Gas Velocity")
+      missing <- setdiff(required, names(rv$raw_data))
+      if (length(missing) > 0) {
+        showNotification(paste("\u2717 Missing sheets:", paste(missing, collapse = ", ")),
+                         type = "error")
+        return()
+      }
+
+      all_data <- list()
+      for (i in seq_along(cases)) {
+        ul_raw <- extract_case("Liquid Velocity", cases[i])
+        ug_raw <- extract_case("Gas Velocity",    cases[i])
+
+        if (!is.null(ul_raw)) {
+          ul_df <- ul_raw
+          ul_df$variable <- "Liquid Velocity (UL)"
+          ul_df$metric <- "Velocity (m/s)"
+          ul_df$panel <- labels[i]
+          all_data[[length(all_data) + 1]] <- ul_df
+        }
+        if (!is.null(ug_raw)) {
+          ug_df <- ug_raw
+          ug_df$variable <- "Gas Velocity (UG)"
+          ug_df$metric <- "Velocity (m/s)"
+          ug_df$panel <- labels[i]
+          all_data[[length(all_data) + 1]] <- ug_df
+        }
+        # Slip ratio = UG / UL
+        if (!is.null(ul_raw) && !is.null(ug_raw)) {
+          merged <- merge(
+            data.frame(x = ul_raw$x, y_ul = ul_raw$y),
+            data.frame(x = ug_raw$x, y_ug = ug_raw$y),
+            by = "x"
+          )
+          slip <- data.frame(
+            x = merged$x,
+            y = merged$y_ug / merged$y_ul,
+            variable = "Slip Ratio (UG/UL)",
+            metric   = "Slip Ratio (-)",
+            panel    = labels[i],
+            stringsAsFactors = FALSE
+          )
+          all_data[[length(all_data) + 1]] <- slip
+        }
+      }
+
+      plot_df <- do.call(rbind, all_data)
+      plot_df$panel  <- factor(plot_df$panel,  levels = labels)
+      plot_df$metric <- factor(plot_df$metric, levels = c("Velocity (m/s)", "Slip Ratio (-)"))
+
+      rv$multi_panel_data <- plot_df
+      rv$multi_panel_type <- plot_type
+
+      title <- if (plot_type == "velocity_1_5") "Phase Velocity & Slip Ratio \u2014 Years 1\u20135"
+               else if (plot_type == "velocity_6_10") "Phase Velocity & Slip Ratio \u2014 Years 6\u201310"
+               else "Phase Velocity & Slip Ratio"
+      updateTextInput(session, "chart_title", value = title)
+      updateTextInput(session, "xlabel", value = "Pipeline Distance [m]")
+      updateTextInput(session, "ylabel", value = "")
+    }
+
+    rv$multi_panel_mode <- TRUE
+    rv$plot_counter <- rv$plot_counter + 1
+    showNotification("\u2713 Multi-panel plot generated", type = "message", duration = 4)
+  })
+
+  observeEvent(input$exit_multi, {
+    rv$multi_panel_mode <- FALSE
+    rv$plot_counter <- rv$plot_counter + 1
+    showNotification("Exited multi-panel mode", type = "message", duration = 3)
+  })
+
   # ── Refresh plot ────────────────────────────────────────────────────────────
   observeEvent(input$refresh_plot, { rv$plot_counter <- rv$plot_counter + 1 })
 
@@ -1075,6 +1281,139 @@ server <- function(input, output, session) {
               axis.ticks = element_blank(), panel.border = element_blank(),
               axis.line = element_blank())
       return(p)
+    }
+
+    # ── Multi-panel mode (Holdup / Velocity) ──────────
+    if (isTRUE(rv$multi_panel_mode) && !is.null(rv$multi_panel_data)) {
+      mpdf <- rv$multi_panel_data
+      font_size  <- input$axis_text_size %||% 10
+      pal        <- PALETTES[[input$palette]]
+      tick_inward <- (input$tick_dir %||% "in") != "out"
+      title_sz   <- input$title_size %||% 16
+      label_sz   <- input$axis_label_size %||% 12
+      leg_sz     <- input$legend_size %||% 10
+      lw         <- input$line_weight %||% 0.9
+      grid_opt   <- input$grid_lines %||% "none"
+      border_opt <- input$show_border %||% TRUE
+      t_lab      <- parse_label(input$chart_title)
+      x_lab      <- parse_label(input$xlabel)
+      y_lab      <- parse_label(input$ylabel)
+      st_lab     <- if (nchar(input$chart_subtitle %||% "") > 0) input$chart_subtitle else NULL
+
+      # Clean academic facet strip theme (shared by both plot types)
+      strip_theme <- theme(
+        strip.background = element_rect(fill = "white", color = "#1a1a1a",
+                                         linewidth = 0.5),
+        strip.text       = element_text(size = label_sz * 0.9, face = "bold",
+                                         color = "#1a1714", margin = margin(t = 4, b = 4)),
+        panel.spacing    = unit(14, "pt")
+      )
+
+      if (rv$multi_panel_type %in% c("holdup", "holdup_all")) {
+        var_colors    <- c("Total Liquid (HOL)" = pal[1],
+                           "Water (HOLWT)"      = pal[2],
+                           "Oil (HOLHL)"        = pal[3])
+        var_linetypes <- c("Total Liquid (HOL)" = "solid",
+                           "Water (HOLWT)"      = "dashed",
+                           "Oil (HOLHL)"        = "dashed")
+
+        # 3-panel (1x3) for main text; 10-panel (2x5) for appendix
+        facet_ncol <- if (rv$multi_panel_type == "holdup_all") 5 else 3
+
+        p <- ggplot(mpdf, aes(x = x, y = y, color = variable, linetype = variable)) +
+          geom_line(linewidth = lw) +
+          facet_wrap(~ panel, ncol = facet_ncol) +
+          scale_color_manual(values = var_colors) +
+          scale_linetype_manual(values = var_linetypes) +
+          labs(x = x_lab, y = y_lab, title = t_lab, subtitle = st_lab,
+               color = NULL, linetype = NULL) +
+          theme_academic(base_size = font_size, grid = grid_opt,
+                         border = border_opt, ticks_inward = tick_inward) +
+          strip_theme +
+          theme(
+            plot.title  = element_text(size = title_sz, face = "bold", hjust = 0.5,
+                                        margin = margin(b = 8)),
+            axis.title  = element_text(size = label_sz),
+            axis.text   = element_text(size = font_size),
+            legend.text = element_text(size = leg_sz)
+          )
+
+        # Legend: default to bottom-center outside for multi-panel
+        lp <- input$legend_pos %||% "Bottom Right"
+        if (lp == "Hidden") {
+          p <- p + theme(legend.position = "none")
+        } else {
+          p <- p + theme(
+            legend.position = "bottom",
+            legend.justification = "center",
+            legend.background = element_rect(fill = alpha("white", 0.95),
+                                              color = "#cccccc", linewidth = 0.3),
+            legend.margin = margin(t = 4, b = 4, l = 8, r = 8)
+          )
+        }
+
+        # Override legend keys to show line swatches with correct linetypes
+        p <- p + guides(
+          color = guide_legend(
+            nrow = 1,
+            override.aes = list(linewidth = lw + 0.3)
+          ),
+          linetype = "none"
+        )
+
+        return(p)
+
+      } else if (rv$multi_panel_type %in% c("velocity", "velocity_1_5", "velocity_6_10")) {
+        var_colors <- c("Liquid Velocity (UL)" = pal[1],
+                        "Gas Velocity (UG)"    = pal[2],
+                        "Slip Ratio (UG/UL)"   = pal[3])
+
+        p <- ggplot(mpdf, aes(x = x, y = y, color = variable)) +
+          geom_line(linewidth = lw) +
+          facet_grid(metric ~ panel, scales = "free_y", switch = "y") +
+          scale_color_manual(values = var_colors) +
+          labs(x = x_lab, y = NULL, title = t_lab, subtitle = st_lab,
+               color = NULL) +
+          theme_academic(base_size = font_size, grid = grid_opt,
+                         border = border_opt, ticks_inward = tick_inward) +
+          strip_theme +
+          theme(
+            plot.title  = element_text(size = title_sz, face = "bold", hjust = 0.5,
+                                        margin = margin(b = 8)),
+            axis.title  = element_text(size = label_sz),
+            axis.text   = element_text(size = font_size),
+            legend.text = element_text(size = leg_sz),
+            # Row strips on left side act as y-axis labels
+            strip.placement  = "outside",
+            strip.text.y.left = element_text(size = label_sz, face = "bold",
+                                              angle = 90, color = "#1a1714",
+                                              margin = margin(r = 6)),
+            strip.background.y = element_rect(fill = "white", color = NA)
+          )
+
+        # Legend: default to bottom-center outside the plot for multi-panel
+        lp <- input$legend_pos %||% "Bottom Right"
+        if (lp == "Hidden") {
+          p <- p + theme(legend.position = "none")
+        } else {
+          p <- p + theme(
+            legend.position = "bottom",
+            legend.justification = "center",
+            legend.background = element_rect(fill = alpha("white", 0.95),
+                                              color = "#cccccc", linewidth = 0.3),
+            legend.margin = margin(t = 4, b = 4, l = 8, r = 8)
+          )
+        }
+
+        p <- p + guides(
+          color = guide_legend(
+            nrow = 1,
+            override.aes = list(linewidth = lw + 0.3)
+          )
+        )
+
+        return(p)
+      }
     }
 
     # ── Extraction mode plot ───────────────────────────
