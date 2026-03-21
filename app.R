@@ -645,8 +645,8 @@ ui <- page_navbar(
                 textInput("slug_label_a", "Label", value = "Year 1 (0% WC)")
               ),
               column(4,
-                selectInput("slug_panel_b", "Panel B", choices = 1:10, selected = 5),
-                textInput("slug_label_b", "Label", value = "Year 5 (65% WC)")
+                selectInput("slug_panel_b", "Panel B", choices = 1:10, selected = 4),
+                textInput("slug_label_b", "Label", value = "Year 4 (50% WC)")
               ),
               column(4,
                 selectInput("slug_panel_c", "Panel C", choices = 1:10, selected = 10),
@@ -659,7 +659,7 @@ ui <- page_navbar(
             helpText("Select the time window for time-series plots.",
                      style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
             numericInput("slug_t_start", "Start time (s)", value = 0, min = 0, step = 100),
-            numericInput("slug_t_window", "Window duration (s)", value = 600, min = 60, step = 60)
+            numericInput("slug_t_window", "Window duration (s)", value = 1800, min = 60, step = 60)
           ),
 
           accordion_panel("Water Cut Values", icon = icon("tint"),
@@ -2319,7 +2319,7 @@ server <- function(input, output, session) {
   # Build 3-panel stacked time-series plot
   build_slug_timeseries <- function(data_list, sheet_name, y_label, title,
                                      panels, t_start, t_window, pal, opts,
-                                     ref_line = NULL) {
+                                     ref_line = NULL, var_symbol = "P") {
     t_end <- t_start + t_window
     all_data <- list()
 
@@ -2376,13 +2376,18 @@ server <- function(input, output, session) {
       labs(x = "Time [s]", y = y_label, title = title)
 
     # Add mean line and annotation per panel
+    # Build annotation label with correct variable symbol (P or Q) and subscript pp
+    stats_df$ann_label <- sprintf(
+      "Mean: %.2f\n\u0394%s\u209a\u209a: %.2f\nMax: %.2f\n\u03c3: %.3f",
+      stats_df$mean_val, var_symbol, stats_df$pp_amp, stats_df$max_val, stats_df$sd_val
+    )
+
     p <- p +
       geom_hline(data = stats_df, aes(yintercept = mean_val),
                  linetype = "dashed", color = pal[2], linewidth = 0.4) +
       geom_label(data = stats_df,
                  aes(x = t_start + t_window * 0.98, y = max_val,
-                     label = sprintf("Mean: %.2f\n\u0394P: %.2f\n\u03c3: %.3f",
-                                     mean_val, pp_amp, sd_val)),
+                     label = ann_label),
                  hjust = 1, vjust = 1, size = 2.5, color = pal[4 %% length(pal) + 1],
                  fill = alpha("white", 0.92), label.size = 0.2,
                  label.padding = unit(3, "pt"), lineheight = 1.2)
@@ -2453,12 +2458,12 @@ server <- function(input, output, session) {
     )
     build_slug_timeseries(
       slug_rv$slug_data, "QLT PIPE 7 Trend",
-      expression(paste("Liquid Flow Rate [m"^"3", "/d]")),
+      "Liquid Flow Rate [m\u00b3/d]",
       "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
       slug_panels(),
       input$slug_t_start %||% 0,
-      input$slug_t_window %||% 600,
-      pal, opts
+      input$slug_t_window %||% 1800,
+      pal, opts, var_symbol = "Q"
     )
   }, res = 96)
 
@@ -2639,7 +2644,7 @@ server <- function(input, output, session) {
                  value = amp_data$pt7_amp, metric = "PT PIPE-7 (bara)",
                  stringsAsFactors = FALSE),
       data.frame(year = amp_data$year, wc = amp_data$wc,
-                 value = amp_data$qlt_amp, metric = expression(paste("QLT PIPE-7 (m"^"3", "/d)")),
+                 value = amp_data$qlt_amp, metric = "QLT PIPE-7 (m\u00b3/d)",
                  stringsAsFactors = FALSE)
     )
     bar_df <- bar_df[!is.na(bar_df$value), ]
@@ -2737,16 +2742,17 @@ server <- function(input, output, session) {
     if (tab == "PT PIPE-1 (Fig 4.10)") {
       build_slug_timeseries(slug_rv$slug_data, "PT PIPE 1 Trend",
         "Pressure [bara]", "Pressure Oscillations at Pipeline Inlet (PIPE-1)",
-        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 600, pal, opts)
+        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
     } else if (tab == "PT PIPE-7 (Fig 4.10-B)") {
       build_slug_timeseries(slug_rv$slug_data, "PT PIPE 7 Trend",
         "Pressure [bara]", "Pressure Oscillations at Separator Inlet (PIPE-7)",
-        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 600, pal, opts)
+        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
     } else if (tab == "QLT PIPE-7 (Fig 4.11)") {
       build_slug_timeseries(slug_rv$slug_data, "QLT PIPE 7 Trend",
-        expression(paste("Liquid Flow Rate [m"^"3", "/d]")),
+        "Liquid Flow Rate [m\u00b3/d]",
         "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
-        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 600, pal, opts)
+        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
+        var_symbol = "Q")
     } else {
       # For the other tabs, return NULL (they use independent renderPlot)
       NULL
@@ -2774,16 +2780,17 @@ server <- function(input, output, session) {
       p <- if (tab == "PT PIPE-1 (Fig 4.10)") {
         build_slug_timeseries(slug_rv$slug_data, "PT PIPE 1 Trend",
           "Pressure [bara]", "Pressure Oscillations at Pipeline Inlet (PIPE-1)",
-          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 600, pal, opts)
+          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
       } else if (tab == "PT PIPE-7 (Fig 4.10-B)") {
         build_slug_timeseries(slug_rv$slug_data, "PT PIPE 7 Trend",
           "Pressure [bara]", "Pressure Oscillations at Separator Inlet (PIPE-7)",
-          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 600, pal, opts)
+          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
       } else if (tab == "QLT PIPE-7 (Fig 4.11)") {
         build_slug_timeseries(slug_rv$slug_data, "QLT PIPE 7 Trend",
           "Liquid Flow Rate [m\u00b3/d]",
           "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
-          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 600, pal, opts)
+          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
+          var_symbol = "Q")
       } else if (tab == "Slug Frequency (Fig 4.12)") {
         # Rebuild frequency plot
         sheet <- slug_rv$slugtrack_data[["NSLUG Trend"]]
