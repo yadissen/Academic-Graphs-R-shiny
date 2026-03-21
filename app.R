@@ -2383,19 +2383,55 @@ server <- function(input, output, session) {
       stats_df$mean_val, var_symbol, stats_df$pp_amp, stats_df$max_val, stats_df$sd_val
     )
 
-    # Annotation position
-    ann_x <- if (grepl("right", ann_pos)) t_start + t_window * 0.98 else t_start + t_window * 0.02
-    ann_y <- if (grepl("bottom", ann_pos)) stats_df$min_val else stats_df$max_val
-    ann_hjust <- if (grepl("right", ann_pos)) 1 else 0
-    ann_vjust <- if (grepl("bottom", ann_pos)) 0 else 1
+    # Annotation position — auto-detect best corner per panel
+    # For each panel, check which corner (TL, TR, BL, BR) is farthest from data
+    if (ann_pos == "auto") {
+      corner_results <- do.call(rbind, lapply(levels(plot_df$panel), function(pnl) {
+        pd <- plot_df[plot_df$panel == pnl, ]
+        st <- stats_df[stats_df$panel == pnl, ]
+        t_range <- range(pd$time, na.rm = TRUE)
+        y_range <- range(pd$value, na.rm = TRUE)
+        # Normalise time and value to [0,1] for fair distance comparison
+        t_norm <- (pd$time - t_range[1]) / max(diff(t_range), 1e-9)
+        y_norm <- (pd$value - y_range[1]) / max(diff(y_range), 1e-9)
+        # Four candidate corners in normalised space
+        corners <- list(
+          top_left     = c(0, 1),
+          top_right    = c(1, 1),
+          bottom_left  = c(0, 0),
+          bottom_right = c(1, 0)
+        )
+        # For each corner, compute mean distance to all data points
+        best <- names(which.max(vapply(corners, function(cn) {
+          mean(sqrt((t_norm - cn[1])^2 + (y_norm - cn[2])^2))
+        }, numeric(1))))
+        is_right  <- grepl("right", best)
+        is_bottom <- grepl("bottom", best)
+        data.frame(
+          panel = pnl,
+          ann_x = if (is_right) t_range[2] - diff(t_range) * 0.02 else t_range[1] + diff(t_range) * 0.02,
+          ann_y = if (is_bottom) st$min_val else st$max_val,
+          ann_hjust = if (is_right) 1 else 0,
+          ann_vjust = if (is_bottom) 0 else 1,
+          stringsAsFactors = FALSE
+        )
+      }))
+      corner_results$panel <- factor(corner_results$panel, levels = levels(plot_df$panel))
+      stats_df <- merge(stats_df, corner_results, by = "panel")
+    } else {
+      stats_df$ann_x <- if (grepl("right", ann_pos)) t_start + t_window * 0.98 else t_start + t_window * 0.02
+      stats_df$ann_y <- if (grepl("bottom", ann_pos)) stats_df$min_val else stats_df$max_val
+      stats_df$ann_hjust <- if (grepl("right", ann_pos)) 1 else 0
+      stats_df$ann_vjust <- if (grepl("bottom", ann_pos)) 0 else 1
+    }
 
     p <- p +
       geom_hline(data = stats_df, aes(yintercept = mean_val),
                  linetype = "dashed", color = pal[2], linewidth = 0.4) +
       geom_label(data = stats_df,
                  aes(x = ann_x, y = ann_y,
-                     label = ann_label),
-                 hjust = ann_hjust, vjust = ann_vjust, size = 2.5,
+                     label = ann_label, hjust = ann_hjust, vjust = ann_vjust),
+                 size = 2.5,
                  color = pal[4 %% length(pal) + 1],
                  fill = alpha("white", 0.92), label.size = 0.2,
                  label.padding = unit(3, "pt"), lineheight = 1.2)
@@ -2471,7 +2507,7 @@ server <- function(input, output, session) {
       slug_panels(),
       input$slug_t_start %||% 0,
       input$slug_t_window %||% 1800,
-      pal, opts, var_symbol = "Q"
+      pal, opts, var_symbol = "Q", ann_pos = "auto"
     )
   }, res = 96)
 
@@ -2762,7 +2798,7 @@ server <- function(input, output, session) {
         "Liquid Flow Rate (m\u00b3/d)",
         "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
         slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
-        var_symbol = "Q", ann_pos = "top_right")
+        var_symbol = "Q", ann_pos = "auto")
     } else {
       # For the other tabs, return NULL (they use independent renderPlot)
       NULL
@@ -2802,7 +2838,7 @@ server <- function(input, output, session) {
           "Liquid Flow Rate (m\u00b3/d)",
           "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
           slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
-          var_symbol = "Q", ann_pos = "top_right")
+          var_symbol = "Q", ann_pos = "auto")
       } else if (tab == "Slug Frequency (Fig 4.12)") {
         # Rebuild frequency plot
         sheet <- slug_rv$slugtrack_data[["NSLUG Trend"]]
