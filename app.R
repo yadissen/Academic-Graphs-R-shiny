@@ -2283,9 +2283,9 @@ server <- function(input, output, session) {
           axis.title    = element_text(size = label_sz),
           axis.text     = element_text(size = text_sz),
           legend.text   = element_text(size = leg_sz),
-          legend.position = c(0.98, 0.50),
-          legend.justification = c(1, 0.5),
-          legend.position.inside = c(0.98, 0.50)
+          legend.position = c(0.98, 0.98),
+          legend.justification = c(1, 1),
+          legend.position.inside = c(0.98, 0.98)
         ) +
         guides(color = guide_legend(ncol = 1), linetype = guide_legend(ncol = 1))
 
