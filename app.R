@@ -316,8 +316,8 @@ ui <- page_navbar(
             helpText("Tip: _{...} = subscript, ^{...} = superscript",
                      style = "font-size:0.62rem;color:#999;font-style:italic;"),
             numericInput("title_size", "Title font size", value = 16, min = 8, max = 32, step = 1),
-            numericInput("axis_label_size", "Axis label size", value = 12, min = 8, max = 28, step = 1),
-            numericInput("axis_text_size", "Tick label size", value = 10, min = 6, max = 24, step = 1)
+            numericInput("axis_label_size", "Axis label size", value = 14, min = 8, max = 28, step = 1),
+            numericInput("axis_text_size", "Tick label size", value = 12, min = 6, max = 24, step = 1)
           ),
 
           # ── APPEARANCE ─────────────────────────────────────
@@ -407,89 +407,6 @@ ui <- page_navbar(
                         selected = "ur"),
             actionButton("add_ann", "Add annotation", class = "btn-ghost w-100", icon = icon("plus")),
             uiOutput("annotations_list")
-          ),
-
-          # ── TREND EXTRACTION (for Figure 5-type plots) ────
-          accordion_panel("Trend Extraction", icon = icon("crosshairs"),
-            helpText("Extract one value per series (e.g. inlet pressure) and plot against a parameter (e.g. water cut).",
-                     style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
-            checkboxInput("extraction_enable", "Enable extraction mode", value = FALSE),
-            conditionalPanel("input.extraction_enable",
-              selectInput("extract_method", "Extract value",
-                          choices = c("Inlet (first value)" = "first",
-                                      "Outlet (last value)" = "last",
-                                      "Minimum" = "min",
-                                      "Maximum" = "max",
-                                      "Mean" = "mean")),
-              textInput("extract_x_label", "X parameter label", value = "Water Cut [%]"),
-              textInput("extract_y_label", "Y parameter label", value = "Inlet Pressure [bara]"),
-              uiOutput("extract_x_inputs"),
-              hr(),
-              checkboxInput("extract_trend", "Show trend line", value = TRUE),
-              conditionalPanel("input.extract_trend",
-                selectInput("extract_trend_type", "Trend type",
-                            choices = c("Linear" = "lm",
-                                        "LOESS smooth" = "loess"),
-                            selected = "lm"),
-                conditionalPanel("input.extract_trend_type == 'lm'",
-                  selectInput("extract_eq_pos", "Equation position",
-                              choices = c("Top Left" = "tl", "Top Right" = "tr",
-                                          "Bottom Left" = "bl", "Bottom Right" = "br",
-                                          "Hidden" = "none"),
-                              selected = "tr")
-                )
-              ),
-              hr(),
-              checkboxInput("extract_margin", "Show margin from reference", value = FALSE),
-              conditionalPanel("input.extract_margin",
-                numericInput("extract_margin_ref", "Reference value", value = 32, step = 0.1),
-                textInput("extract_margin_ref_label", "Reference name", value = "WAT"),
-                textInput("extract_margin_panel_label", "Margin panel label",
-                          value = "Thermal Margin (\u00b0C)")
-              ),
-              actionButton("generate_extraction", "Generate extraction plot",
-                           class = "btn-academic w-100", icon = icon("chart-line"))
-            )
-          ),
-
-          # ── MULTI-PANEL PLOTS (Holdup / Velocity) ─────────
-          accordion_panel("Multi-Panel Plots", icon = icon("grip"),
-            helpText("Create multi-panel holdup or velocity profiles combining data from multiple sheets.",
-                     style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
-            selectInput("multi_plot_type", "Plot type",
-                        choices = c("Liquid Holdup Profiles" = "holdup",
-                                    "Velocity & Slip Ratio" = "velocity",
-                                    "Holdup \u2014 All Years (2\u00d75)" = "holdup_all",
-                                    "Velocity & Slip \u2014 Years 1\u20135" = "velocity_1_5",
-                                    "Velocity & Slip \u2014 Years 6\u201310" = "velocity_6_10")),
-            conditionalPanel(
-              "input.multi_plot_type == 'holdup' || input.multi_plot_type == 'velocity'",
-              tags$p("Select 3 cases for the 3 panels:",
-                     style = "font-size:0.68rem;color:#7a7060;font-weight:600;margin-bottom:4px;"),
-              fluidRow(
-                column(4,
-                  numericInput("mp_case1", "Case #", value = 1, min = 1, max = 10, step = 1),
-                  textInput("mp_label1", "Label", value = "Year 1")
-                ),
-                column(4,
-                  numericInput("mp_case2", "Case #", value = 5, min = 1, max = 10, step = 1),
-                  textInput("mp_label2", "Label", value = "Year 5")
-                ),
-                column(4,
-                  numericInput("mp_case3", "Case #", value = 10, min = 1, max = 10, step = 1),
-                  textInput("mp_label3", "Label", value = "Year 10")
-                )
-              )
-            ),
-            conditionalPanel(
-              "input.multi_plot_type == 'holdup_all' || input.multi_plot_type == 'velocity_1_5' || input.multi_plot_type == 'velocity_6_10'",
-              helpText("Cases and labels are auto-assigned for appendix layouts.",
-                       style = "font-size:0.62rem;color:#999;font-style:italic;")
-            ),
-            actionButton("generate_multi", "Generate multi-panel plot",
-                         class = "btn-academic w-100", icon = icon("chart-line")),
-            actionButton("exit_multi", "Exit multi-panel mode",
-                         class = "btn-ghost w-100 mt-2", icon = icon("arrow-left"))
           ),
 
           # ── LEGEND ─────────────────────────────────────────
@@ -605,6 +522,91 @@ ui <- page_navbar(
         tableOutput("data_table")
       )
     )
+  ),
+
+  # ═══════════════════════════════════════════════════════
+  #  TAB 4: PROFILE MATRIX (Appendix Figures)
+  # ═══════════════════════════════════════════════════════
+  nav_panel("Profile Matrix", icon = icon("grip"),
+    layout_sidebar(
+      fillable = TRUE,
+      sidebar = sidebar(
+        width = 320,
+        id = "matrix_sidebar",
+        accordion(
+          id = "acc_matrix",
+          open = c("Data Source", "Panel Settings", "Appearance"),
+
+          accordion_panel("Data Source", icon = icon("database"),
+            helpText("Select sheets with paired columns (X, Y, X, Y, ...) for each case.",
+                     style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
+            uiOutput("matrix_sheet_selector"),
+            textInput("matrix_panel_prefix", "Panel label prefix", value = "Year"),
+            helpText("Each pair of columns becomes one panel. Labels: 'Year 1', 'Year 2', etc.",
+                     style = "font-size:0.62rem;color:#999;font-style:italic;"),
+            actionButton("matrix_load_btn", "Generate Matrix",
+                         class = "btn-academic w-100", icon = icon("th"))
+          ),
+
+          accordion_panel("Panel Settings", icon = icon("table-cells"),
+            numericInput("matrix_ncol", "Columns", value = 5, min = 1, max = 10, step = 1),
+            numericInput("matrix_nrow", "Rows", value = 2, min = 1, max = 10, step = 1),
+            checkboxInput("matrix_free_y", "Free Y scales across panels", value = FALSE),
+            checkboxInput("matrix_free_x", "Free X scales across panels", value = FALSE)
+          ),
+
+          accordion_panel("Appearance", icon = icon("palette"),
+            textInput("matrix_title", "Plot title", value = ""),
+            textInput("matrix_xlabel", "X axis label", value = "Pipeline Length [m]"),
+            textInput("matrix_ylabel", "Y axis label", value = ""),
+            selectInput("matrix_palette", "Colour palette",
+                        choices = names(PALETTES), selected = "Classic Academic"),
+            sliderInput("matrix_line_weight", "Line weight", min = 0.3, max = 3, value = 0.7, step = 0.1),
+            numericInput("matrix_base_size", "Base font size", value = 11, min = 6, max = 24, step = 1),
+            numericInput("matrix_strip_size", "Panel label size", value = 10, min = 6, max = 20, step = 1),
+            selectInput("matrix_grid", "Grid lines",
+                        choices = c("None" = "none", "Major" = "major",
+                                    "Major + Minor" = "both",
+                                    "X only" = "x", "Y only" = "y"),
+                        selected = "major"),
+            selectInput("matrix_legend_pos", "Legend position",
+                        choices = c("Bottom" = "bottom", "Right" = "right",
+                                    "Top" = "top", "Hidden" = "none"),
+                        selected = "bottom"),
+            numericInput("matrix_legend_cols", "Legend columns", value = 5, min = 1, max = 10, step = 1)
+          ),
+
+          accordion_panel("Export", icon = icon("download"),
+            fluidRow(
+              column(6, numericInput("matrix_export_w", "W (in)", value = 14, min = 4, max = 30, step = 0.5)),
+              column(6, numericInput("matrix_export_h", "H (in)", value = 8, min = 3, max = 20, step = 0.5))
+            ),
+            fluidRow(
+              column(6, numericInput("matrix_export_dpi", "DPI", value = 300, min = 72, max = 1200, step = 50)),
+              column(6, selectInput("matrix_export_fmt", "Format",
+                                    choices = c("SVG" = "svg", "PDF" = "pdf",
+                                                "PNG" = "png", "TIFF" = "tiff"),
+                                    selected = "pdf"))
+            ),
+            textInput("matrix_export_filename", "Filename", value = "appendix_figure"),
+            downloadButton("matrix_download", "Export Matrix",
+                           class = "btn-export w-100", icon = icon("download"))
+          )
+        ) # end accordion
+      ), # end sidebar
+
+      # Main content: the matrix plot
+      layout_column_wrap(
+        width = 1,
+        card(
+          card_header("Profile Matrix Preview"),
+          card_body(
+            class = "plot-container text-center",
+            plotOutput("matrix_plot", height = "700px", width = "100%")
+          )
+        )
+      )
+    ) # end layout_sidebar
   )
 )
 
@@ -624,13 +626,7 @@ server <- function(input, output, session) {
     annotations    = list(),
     top_anns       = list(),   # manual top-axis annotations
     is_flow_regime = FALSE,
-    plot_counter   = 0,        # force refresh
-    extraction_mode = FALSE,
-    extraction_data = NULL,
-    multi_panel_mode = FALSE,
-    multi_panel_data = NULL,
-    multi_panel_type = NULL,
-    series_panel_ver = 0L      # increment to re-render series panel (structural changes only)
+    plot_counter   = 0         # force refresh
   )
 
   # ── Journal preset ─────────────────────────────────────────────────────────
@@ -777,7 +773,6 @@ server <- function(input, output, session) {
     }
 
     rv$plot_counter <- rv$plot_counter + 1
-    rv$series_panel_ver <- rv$series_panel_ver + 1L
     showNotification(paste0("\u2713 ", length(series_list), " series loaded"), type = "message")
   })
 
@@ -796,9 +791,7 @@ server <- function(input, output, session) {
   #  SERIES PANEL — editable names, colours, visibility
   # ══════════════════════════════════════════════════════
   output$series_panel <- renderUI({
-    # Depend only on structural changes (load, visibility toggle), NOT label edits
-    rv$series_panel_ver
-    series <- isolate(rv$series_data)
+    series <- rv$series_data
     if (length(series) == 0)
       return(tags$p("No series loaded yet", style = "font-size:0.78rem;color:#999;font-style:italic;"))
 
@@ -868,7 +861,6 @@ server <- function(input, output, session) {
         # Visibility toggle
         observeEvent(input[[paste0("toggle_vis_", i)]], {
           rv$series_data[[i]]$visible <- !rv$series_data[[i]]$visible
-          rv$series_panel_ver <- rv$series_panel_ver + 1L
         }, ignoreInit = TRUE)
       })
       rv_obs$n_series_obs <- n
@@ -877,11 +869,9 @@ server <- function(input, output, session) {
 
   observeEvent(input$show_all, {
     for (i in seq_along(rv$series_data)) rv$series_data[[i]]$visible <- TRUE
-    rv$series_panel_ver <- rv$series_panel_ver + 1L
   })
   observeEvent(input$hide_all, {
     for (i in seq_along(rv$series_data)) rv$series_data[[i]]$visible <- FALSE
-    rv$series_panel_ver <- rv$series_panel_ver + 1L
   })
 
   # ══════════════════════════════════════════════════════
@@ -971,82 +961,6 @@ server <- function(input, output, session) {
   })
 
   # ══════════════════════════════════════════════════════
-  #  TREND EXTRACTION
-  # ══════════════════════════════════════════════════════
-
-  # Dynamic x-value inputs for each loaded series
-  output$extract_x_inputs <- renderUI({
-    series <- rv$series_data
-    if (length(series) == 0)
-      return(tags$p("Load data first", style = "font-size:0.75rem;color:#999;font-style:italic;"))
-    tagList(
-      tags$p("X parameter value for each series:",
-             style = "font-size:0.68rem;color:#7a7060;font-weight:600;margin-bottom:4px;"),
-      lapply(seq_along(series), function(i) {
-        div(style = "display:flex;align-items:center;gap:6px;margin-bottom:3px;",
-          tags$span(series[[i]]$label,
-                    style = "font-size:0.72rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"),
-          numericInput(paste0("extract_x_", i), NULL, value = i * 10,
-                       step = 1, width = "90px")
-        )
-      })
-    )
-  })
-
-  # Generate extraction plot
-  observeEvent(input$generate_extraction, {
-    series <- rv$series_data
-    req(length(series) > 0)
-
-    method <- input$extract_method %||% "first"
-    x_vals <- numeric(length(series))
-    y_vals <- numeric(length(series))
-    labels <- character(length(series))
-
-    for (i in seq_along(series)) {
-      s <- series[[i]]
-      x_vals[i] <- input[[paste0("extract_x_", i)]] %||% (i * 10)
-      labels[i] <- s$label
-
-      ord <- order(s$x)
-      y_sorted <- s$y[ord]
-
-      if (method == "first") y_vals[i] <- y_sorted[1]
-      else if (method == "last") y_vals[i] <- y_sorted[length(y_sorted)]
-      else if (method == "min") y_vals[i] <- min(s$y, na.rm = TRUE)
-      else if (method == "max") y_vals[i] <- max(s$y, na.rm = TRUE)
-      else y_vals[i] <- mean(s$y, na.rm = TRUE)
-    }
-
-    rv$extraction_data <- data.frame(
-      x = x_vals, y = y_vals, label = labels, stringsAsFactors = FALSE
-    )
-    rv$extraction_mode <- TRUE
-
-    # Update axis labels
-    updateTextInput(session, "xlabel", value = input$extract_x_label %||% "Water Cut [%]")
-    updateTextInput(session, "ylabel", value = input$extract_y_label %||% "Inlet Pressure [bara]")
-    updateTextInput(session, "chart_title", value = paste0(
-      switch(method, first = "Inlet", last = "Outlet", min = "Minimum",
-             max = "Maximum", mean = "Mean"),
-      " Value Trend"
-    ))
-    rv$plot_counter <- rv$plot_counter + 1
-    showNotification(
-      paste0("\u2713 Extracted ", length(series), " points for trend plot"),
-      type = "message", duration = 4
-    )
-  })
-
-  # Disable extraction mode when checkbox is unchecked
-  observeEvent(input$extraction_enable, {
-    if (!isTRUE(input$extraction_enable)) {
-      rv$extraction_mode <- FALSE
-      rv$plot_counter <- rv$plot_counter + 1
-    }
-  })
-
-  # ══════════════════════════════════════════════════════
   #  TOP AXIS ANNOTATIONS
   # ══════════════════════════════════════════════════════
   output$top_ann_col_selectors <- renderUI({
@@ -1095,169 +1009,6 @@ server <- function(input, output, session) {
     })
   })
 
-  # ══════════════════════════════════════════════════════
-  #  MULTI-PANEL PLOTS (Holdup / Velocity)
-  # ══════════════════════════════════════════════════════
-
-  observeEvent(input$generate_multi, {
-    req(rv$raw_data)
-    plot_type <- input$multi_plot_type
-
-    # Helper: extract x,y for a given case from a sheet (paired columns)
-    extract_case <- function(sheet_name, case_num) {
-      sheet <- rv$raw_data[[sheet_name]]
-      if (is.null(sheet)) return(NULL)
-      x_col <- (case_num - 1) * 2 + 1
-      y_col <- x_col + 1
-      if (y_col > ncol(sheet)) return(NULL)
-      x <- suppressWarnings(as.numeric(sheet[[x_col]]))
-      y <- suppressWarnings(as.numeric(sheet[[y_col]]))
-      valid <- !is.na(x) & !is.na(y)
-      data.frame(x = x[valid], y = y[valid])
-    }
-
-    # ── Resolve cases & labels based on plot type ──────
-    is_holdup_type  <- plot_type %in% c("holdup", "holdup_all")
-    is_velocity_type <- plot_type %in% c("velocity", "velocity_1_5", "velocity_6_10")
-
-    if (plot_type == "holdup") {
-      cases  <- c(input$mp_case1, input$mp_case2, input$mp_case3)
-      labels <- c(input$mp_label1, input$mp_label2, input$mp_label3)
-    } else if (plot_type == "velocity") {
-      cases  <- c(input$mp_case1, input$mp_case2, input$mp_case3)
-      labels <- c(input$mp_label1, input$mp_label2, input$mp_label3)
-    } else if (plot_type == "holdup_all") {
-      cases  <- 1:10
-      labels <- paste("Year", 1:10)
-    } else if (plot_type == "velocity_1_5") {
-      cases  <- 1:5
-      labels <- paste("Year", 1:5)
-    } else if (plot_type == "velocity_6_10") {
-      cases  <- 6:10
-      labels <- paste("Year", 6:10)
-    }
-
-    # ── Build holdup data ──────────────────────────────
-    if (is_holdup_type) {
-      required <- c("Liquid holdup", "Water holdup", "Oil holdup")
-      missing <- setdiff(required, names(rv$raw_data))
-      if (length(missing) > 0) {
-        showNotification(paste("\u2717 Missing sheets:", paste(missing, collapse = ", ")),
-                         type = "error")
-        return()
-      }
-
-      all_data <- list()
-      for (i in seq_along(cases)) {
-        hol  <- extract_case("Liquid holdup", cases[i])
-        holwt <- extract_case("Water holdup", cases[i])
-        holhl <- extract_case("Oil holdup",   cases[i])
-
-        if (!is.null(hol)) {
-          hol$variable <- "Total Liquid (HOL)"
-          hol$panel <- labels[i]
-          all_data[[length(all_data) + 1]] <- hol
-        }
-        if (!is.null(holwt)) {
-          holwt$variable <- "Water (HOLWT)"
-          holwt$panel <- labels[i]
-          all_data[[length(all_data) + 1]] <- holwt
-        }
-        if (!is.null(holhl)) {
-          holhl$variable <- "Oil (HOLHL)"
-          holhl$panel <- labels[i]
-          all_data[[length(all_data) + 1]] <- holhl
-        }
-      }
-
-      plot_df <- do.call(rbind, all_data)
-      plot_df$panel <- factor(plot_df$panel, levels = labels)
-      plot_df$variable <- factor(plot_df$variable,
-                                  levels = c("Total Liquid (HOL)", "Water (HOLWT)", "Oil (HOLHL)"))
-
-      rv$multi_panel_data <- plot_df
-      rv$multi_panel_type <- plot_type
-
-      title <- if (plot_type == "holdup_all") "Liquid Holdup Profiles \u2014 All Years"
-               else "Liquid Holdup Profiles"
-      updateTextInput(session, "chart_title", value = title)
-      updateTextInput(session, "xlabel", value = "Pipeline Distance [m]")
-      updateTextInput(session, "ylabel", value = "Holdup Fraction [-]")
-
-    # ── Build velocity data ────────────────────────────
-    } else if (is_velocity_type) {
-      required <- c("Liquid Velocity", "Gas Velocity")
-      missing <- setdiff(required, names(rv$raw_data))
-      if (length(missing) > 0) {
-        showNotification(paste("\u2717 Missing sheets:", paste(missing, collapse = ", ")),
-                         type = "error")
-        return()
-      }
-
-      all_data <- list()
-      for (i in seq_along(cases)) {
-        ul_raw <- extract_case("Liquid Velocity", cases[i])
-        ug_raw <- extract_case("Gas Velocity",    cases[i])
-
-        if (!is.null(ul_raw)) {
-          ul_df <- ul_raw
-          ul_df$variable <- "Liquid Velocity (UL)"
-          ul_df$metric <- "Velocity (m/s)"
-          ul_df$panel <- labels[i]
-          all_data[[length(all_data) + 1]] <- ul_df
-        }
-        if (!is.null(ug_raw)) {
-          ug_df <- ug_raw
-          ug_df$variable <- "Gas Velocity (UG)"
-          ug_df$metric <- "Velocity (m/s)"
-          ug_df$panel <- labels[i]
-          all_data[[length(all_data) + 1]] <- ug_df
-        }
-        # Slip ratio = UG / UL
-        if (!is.null(ul_raw) && !is.null(ug_raw)) {
-          merged <- merge(
-            data.frame(x = ul_raw$x, y_ul = ul_raw$y),
-            data.frame(x = ug_raw$x, y_ug = ug_raw$y),
-            by = "x"
-          )
-          slip <- data.frame(
-            x = merged$x,
-            y = merged$y_ug / merged$y_ul,
-            variable = "Slip Ratio (UG/UL)",
-            metric   = "Slip Ratio (-)",
-            panel    = labels[i],
-            stringsAsFactors = FALSE
-          )
-          all_data[[length(all_data) + 1]] <- slip
-        }
-      }
-
-      plot_df <- do.call(rbind, all_data)
-      plot_df$panel  <- factor(plot_df$panel,  levels = labels)
-      plot_df$metric <- factor(plot_df$metric, levels = c("Velocity (m/s)", "Slip Ratio (-)"))
-
-      rv$multi_panel_data <- plot_df
-      rv$multi_panel_type <- plot_type
-
-      title <- if (plot_type == "velocity_1_5") "Phase Velocity & Slip Ratio \u2014 Years 1\u20135"
-               else if (plot_type == "velocity_6_10") "Phase Velocity & Slip Ratio \u2014 Years 6\u201310"
-               else "Phase Velocity & Slip Ratio"
-      updateTextInput(session, "chart_title", value = title)
-      updateTextInput(session, "xlabel", value = "Pipeline Distance [m]")
-      updateTextInput(session, "ylabel", value = "")
-    }
-
-    rv$multi_panel_mode <- TRUE
-    rv$plot_counter <- rv$plot_counter + 1
-    showNotification("\u2713 Multi-panel plot generated", type = "message", duration = 4)
-  })
-
-  observeEvent(input$exit_multi, {
-    rv$multi_panel_mode <- FALSE
-    rv$plot_counter <- rv$plot_counter + 1
-    showNotification("Exited multi-panel mode", type = "message", duration = 3)
-  })
-
   # ── Refresh plot ────────────────────────────────────────────────────────────
   observeEvent(input$refresh_plot, { rv$plot_counter <- rv$plot_counter + 1 })
 
@@ -1283,358 +1034,6 @@ server <- function(input, output, session) {
       return(p)
     }
 
-    # ── Multi-panel mode (Holdup / Velocity) ──────────
-    if (isTRUE(rv$multi_panel_mode) && !is.null(rv$multi_panel_data)) {
-      mpdf <- rv$multi_panel_data
-      font_size  <- input$axis_text_size %||% 10
-      pal        <- PALETTES[[input$palette]]
-      tick_inward <- (input$tick_dir %||% "in") != "out"
-      title_sz   <- input$title_size %||% 16
-      label_sz   <- input$axis_label_size %||% 12
-      leg_sz     <- input$legend_size %||% 10
-      lw         <- input$line_weight %||% 0.9
-      grid_opt   <- input$grid_lines %||% "none"
-      border_opt <- input$show_border %||% TRUE
-      t_lab      <- parse_label(input$chart_title)
-      x_lab      <- parse_label(input$xlabel)
-      y_lab      <- parse_label(input$ylabel)
-      st_lab     <- if (nchar(input$chart_subtitle %||% "") > 0) input$chart_subtitle else NULL
-
-      # Clean academic facet strip theme (shared by both plot types)
-      strip_theme <- theme(
-        strip.background = element_rect(fill = "white", color = "#1a1a1a",
-                                         linewidth = 0.5),
-        strip.text       = element_text(size = label_sz * 0.9, face = "bold",
-                                         color = "#1a1714", margin = margin(t = 4, b = 4)),
-        panel.spacing    = unit(14, "pt")
-      )
-
-      if (rv$multi_panel_type %in% c("holdup", "holdup_all")) {
-        var_colors    <- c("Total Liquid (HOL)" = pal[1],
-                           "Water (HOLWT)"      = pal[2],
-                           "Oil (HOLHL)"        = pal[3])
-        var_linetypes <- c("Total Liquid (HOL)" = "solid",
-                           "Water (HOLWT)"      = "dashed",
-                           "Oil (HOLHL)"        = "dashed")
-
-        # 3-panel (1x3) for main text; 10-panel (2x5) for appendix
-        facet_ncol <- if (rv$multi_panel_type == "holdup_all") 5 else 3
-
-        p <- ggplot(mpdf, aes(x = x, y = y, color = variable, linetype = variable)) +
-          geom_line(linewidth = lw) +
-          facet_wrap(~ panel, ncol = facet_ncol) +
-          scale_color_manual(values = var_colors) +
-          scale_linetype_manual(values = var_linetypes) +
-          labs(x = x_lab, y = y_lab, title = t_lab, subtitle = st_lab,
-               color = NULL, linetype = NULL) +
-          theme_academic(base_size = font_size, grid = grid_opt,
-                         border = border_opt, ticks_inward = tick_inward) +
-          strip_theme +
-          theme(
-            plot.title  = element_text(size = title_sz, face = "bold", hjust = 0.5,
-                                        margin = margin(b = 8)),
-            axis.title  = element_text(size = label_sz),
-            axis.text   = element_text(size = font_size),
-            legend.text = element_text(size = leg_sz)
-          )
-
-        # Legend: default to bottom-center outside for multi-panel
-        lp <- input$legend_pos %||% "Bottom Right"
-        if (lp == "Hidden") {
-          p <- p + theme(legend.position = "none")
-        } else {
-          p <- p + theme(
-            legend.position = "bottom",
-            legend.justification = "center",
-            legend.background = element_rect(fill = alpha("white", 0.95),
-                                              color = "#cccccc", linewidth = 0.3),
-            legend.margin = margin(t = 4, b = 4, l = 8, r = 8)
-          )
-        }
-
-        # Override legend keys to show line swatches with correct linetypes
-        p <- p + guides(
-          color = guide_legend(
-            nrow = 1,
-            override.aes = list(linewidth = lw + 0.3)
-          ),
-          linetype = "none"
-        )
-
-        return(p)
-
-      } else if (rv$multi_panel_type %in% c("velocity", "velocity_1_5", "velocity_6_10")) {
-        var_colors <- c("Liquid Velocity (UL)" = pal[1],
-                        "Gas Velocity (UG)"    = pal[2],
-                        "Slip Ratio (UG/UL)"   = pal[3])
-
-        p <- ggplot(mpdf, aes(x = x, y = y, color = variable)) +
-          geom_line(linewidth = lw) +
-          facet_grid(metric ~ panel, scales = "free_y", switch = "y") +
-          scale_color_manual(values = var_colors) +
-          labs(x = x_lab, y = NULL, title = t_lab, subtitle = st_lab,
-               color = NULL) +
-          theme_academic(base_size = font_size, grid = grid_opt,
-                         border = border_opt, ticks_inward = tick_inward) +
-          strip_theme +
-          theme(
-            plot.title  = element_text(size = title_sz, face = "bold", hjust = 0.5,
-                                        margin = margin(b = 8)),
-            axis.title  = element_text(size = label_sz),
-            axis.text   = element_text(size = font_size),
-            legend.text = element_text(size = leg_sz),
-            # Row strips on left side act as y-axis labels
-            strip.placement  = "outside",
-            strip.text.y.left = element_text(size = label_sz, face = "bold",
-                                              angle = 90, color = "#1a1714",
-                                              margin = margin(r = 6)),
-            strip.background.y = element_rect(fill = "white", color = NA)
-          )
-
-        # Legend: default to bottom-center outside the plot for multi-panel
-        lp <- input$legend_pos %||% "Bottom Right"
-        if (lp == "Hidden") {
-          p <- p + theme(legend.position = "none")
-        } else {
-          p <- p + theme(
-            legend.position = "bottom",
-            legend.justification = "center",
-            legend.background = element_rect(fill = alpha("white", 0.95),
-                                              color = "#cccccc", linewidth = 0.3),
-            legend.margin = margin(t = 4, b = 4, l = 8, r = 8)
-          )
-        }
-
-        p <- p + guides(
-          color = guide_legend(
-            nrow = 1,
-            override.aes = list(linewidth = lw + 0.3)
-          )
-        )
-
-        return(p)
-      }
-    }
-
-    # ── Extraction mode plot ───────────────────────────
-    if (isTRUE(rv$extraction_mode) && !is.null(rv$extraction_data)) {
-      edf <- rv$extraction_data
-      font_size <- input$axis_text_size %||% 10
-      pal <- PALETTES[[input$palette]]
-      tick_inward <- (input$tick_dir %||% "in") != "out"
-      mk_size <- input$marker_size %||% 2.8
-      title_sz <- input$title_size %||% 16
-      label_sz <- input$axis_label_size %||% 12
-      x_lab <- parse_label(input$xlabel)
-      y_lab <- parse_label(input$ylabel)
-      t_lab <- parse_label(input$chart_title)
-      st_lab <- if (nchar(input$chart_subtitle %||% "") > 0) input$chart_subtitle else NULL
-      show_margin <- isTRUE(input$extract_margin)
-      trend_on <- isTRUE(input$extract_trend) && nrow(edf) >= 3
-      trend_type <- input$extract_trend_type %||% "lm"
-      eq_pos <- input$extract_eq_pos %||% "tr"
-
-      # ── Build data: single panel or dual panel ──────
-      if (show_margin) {
-        margin_ref <- input$extract_margin_ref %||% 32
-        margin_label <- input$extract_margin_panel_label %||% "Margin"
-        ref_name <- input$extract_margin_ref_label %||% "Ref"
-        value_label <- as.character(y_lab)
-
-        plot_df <- rbind(
-          data.frame(x = edf$x, y = edf$y,
-                     panel = value_label, stringsAsFactors = FALSE),
-          data.frame(x = edf$x, y = edf$y - margin_ref,
-                     panel = margin_label, stringsAsFactors = FALSE)
-        )
-        plot_df$panel <- factor(plot_df$panel, levels = c(value_label, margin_label))
-
-        p <- ggplot(plot_df, aes(x = x, y = y)) +
-          facet_wrap(~ panel, ncol = 1, scales = "free_y") +
-          theme_academic(base_size = font_size,
-                         grid = input$grid_lines %||% "none",
-                         border = input$show_border %||% TRUE,
-                         ticks_inward = tick_inward)
-
-        # Points
-        p <- p + geom_point(size = mk_size, color = pal[1],
-                            shape = 21, fill = pal[1], stroke = 0.5)
-
-        # Trend lines (per-facet, geom_smooth handles facets automatically)
-        if (trend_on) {
-          if (trend_type == "lm") {
-            p <- p + geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
-                                 color = pal[2], linetype = "dashed", linewidth = 0.7)
-            # Equation only on top panel (margin panel has identical slope/R²)
-            if (eq_pos != "none") {
-              top_df <- plot_df[plot_df$panel == value_label, ]
-              if (nrow(top_df) >= 3) {
-                fit <- lm(y ~ x, data = top_df)
-                co <- coef(fit)
-                r2 <- summary(fit)$r.squared
-                sign_char <- if (co[2] >= 0) "+" else "\u2013"
-                eq_label <- sprintf("y = %.3f x %s %.2f\nR\u00b2 = %.4f",
-                                    co[2], sign_char, abs(co[1]), r2)
-                x_rng <- range(top_df$x)
-                y_rng <- range(top_df$y)
-                eq_x <- if (grepl("l", eq_pos)) x_rng[1] + diff(x_rng) * 0.02
-                        else x_rng[2] - diff(x_rng) * 0.02
-                eq_y <- if (grepl("t", eq_pos)) y_rng[2] - diff(y_rng) * 0.02
-                        else y_rng[1] + diff(y_rng) * 0.02
-                eq_hjust <- if (grepl("l", eq_pos)) 0 else 1
-                eq_vjust <- if (grepl("t", eq_pos)) 1 else 0
-                ann_df <- data.frame(x = eq_x, y = eq_y, panel = value_label,
-                                     stringsAsFactors = FALSE)
-                ann_df$panel <- factor(ann_df$panel, levels = levels(plot_df$panel))
-                p <- p + geom_label(data = ann_df, aes(x = x, y = y),
-                  label = eq_label, hjust = eq_hjust, vjust = eq_vjust,
-                  size = 3.2, color = pal[2], lineheight = 1.2,
-                  fill = alpha("white", 0.92), label.size = 0.25,
-                  label.padding = unit(4, "pt"), inherit.aes = FALSE)
-              }
-            }
-          } else {
-            p <- p + geom_smooth(method = "loess", formula = y ~ x, se = FALSE,
-                                 color = pal[2], linetype = "dashed", linewidth = 0.7,
-                                 span = 0.75)
-          }
-        }
-
-        # Reference line in margin panel — use annotate to avoid expanding y-axis
-        margin_df <- plot_df[plot_df$panel == margin_label, ]
-        margin_y_rng <- range(margin_df$y, na.rm = TRUE)
-        if (0 >= margin_y_rng[1] - diff(margin_y_rng) * 0.1 &&
-            0 <= margin_y_rng[2] + diff(margin_y_rng) * 0.1) {
-          # Zero line is near the data — show it with geom_hline
-          ref_line_df <- data.frame(
-            yintercept = 0, panel = margin_label, stringsAsFactors = FALSE)
-          ref_line_df$panel <- factor(ref_line_df$panel, levels = levels(plot_df$panel))
-          p <- p + geom_hline(data = ref_line_df, aes(yintercept = yintercept),
-                              linetype = "dashed", color = "#8b3a1e", linewidth = 0.5)
-        } else {
-          # Zero line is far from data — annotate the margin values instead
-          # to avoid compressing the data into a narrow band
-          min_margin <- min(margin_df$y, na.rm = TRUE)
-          min_x <- margin_df$x[which.min(margin_df$y)]
-          margin_note_df <- data.frame(x = min_x, y = min_margin,
-                                       panel = margin_label, stringsAsFactors = FALSE)
-          margin_note_df$panel <- factor(margin_note_df$panel, levels = levels(plot_df$panel))
-          p <- p + geom_label(data = margin_note_df, aes(x = x, y = y),
-            label = sprintf("Min margin: %.1f\u00b0C", min_margin),
-            hjust = 0.5, vjust = 1.5, size = 3, color = "#8b3a1e",
-            fill = alpha("white", 0.92), label.size = 0.25,
-            label.padding = unit(3, "pt"), inherit.aes = FALSE)
-        }
-
-        # Labels
-        p <- p + labs(x = x_lab, y = NULL, title = t_lab, subtitle = st_lab) +
-          theme(
-            plot.title    = element_text(size = title_sz, face = "bold", hjust = 0.5,
-                                         margin = margin(b = 8)),
-            axis.title    = element_text(size = label_sz),
-            axis.text     = element_text(size = font_size),
-            strip.background = element_rect(fill = "white", color = "#1a1a1a",
-                                             linewidth = 0.5),
-            strip.text    = element_text(size = label_sz * 0.9, face = "bold",
-                                         color = "#1a1714", margin = margin(t = 4, b = 4)),
-            panel.spacing = unit(12, "pt"),
-            legend.position = "none"
-          )
-
-      } else {
-        # ── Single panel extraction plot ──────────────
-        p <- ggplot(edf, aes(x = x, y = y)) +
-          theme_academic(base_size = font_size,
-                         grid = input$grid_lines %||% "none",
-                         border = input$show_border %||% TRUE,
-                         ticks_inward = tick_inward)
-
-        # Scatter points
-        p <- p + geom_point(size = mk_size, color = pal[1],
-                            shape = 21, fill = pal[1], stroke = 0.5)
-
-        # Trend line
-        if (trend_on) {
-          if (trend_type == "lm") {
-            p <- p + geom_smooth(method = "lm", formula = y ~ x, se = FALSE,
-                                 color = pal[2], linetype = "dashed", linewidth = 0.7)
-            # Equation annotation
-            if (eq_pos != "none") {
-              fit <- lm(y ~ x, data = edf)
-              co <- coef(fit)
-              r2 <- summary(fit)$r.squared
-              sign_char <- if (co[2] >= 0) "+" else "\u2013"
-              eq_label <- sprintf("y = %.3f x %s %.2f\nR\u00b2 = %.4f",
-                                  co[2], sign_char, abs(co[1]), r2)
-              x_rng <- range(edf$x)
-              y_rng <- range(edf$y)
-              eq_x <- if (grepl("l", eq_pos)) x_rng[1] + diff(x_rng) * 0.02
-                      else x_rng[2] - diff(x_rng) * 0.02
-              eq_y <- if (grepl("t", eq_pos)) y_rng[2] - diff(y_rng) * 0.02
-                      else y_rng[1] + diff(y_rng) * 0.02
-              eq_hjust <- if (grepl("l", eq_pos)) 0 else 1
-              eq_vjust <- if (grepl("t", eq_pos)) 1 else 0
-              p <- p + annotate("label",
-                x = eq_x, y = eq_y,
-                label = eq_label, hjust = eq_hjust, vjust = eq_vjust,
-                size = 3.2, color = pal[2], lineheight = 1.2,
-                fill = alpha("white", 0.92), label.size = 0.25,
-                label.padding = unit(4, "pt"))
-            }
-          } else {
-            p <- p + geom_smooth(method = "loess", formula = y ~ x, se = FALSE,
-                                 color = pal[2], linetype = "dashed", linewidth = 0.7,
-                                 span = 0.75)
-          }
-        }
-
-        # Labels
-        p <- p + labs(x = x_lab, y = y_lab, title = t_lab, subtitle = st_lab) +
-          theme(
-            plot.title = element_text(size = title_sz, face = "bold", hjust = 0.5,
-                                       margin = margin(b = 8)),
-            axis.title = element_text(size = label_sz),
-            axis.text  = element_text(size = font_size),
-            legend.position = "none"
-          )
-      }
-
-      # Reference lines (shared for both modes)
-      for (ref in rv$ref_lines) {
-        if (ref$axis == "x") {
-          p <- p + geom_vline(xintercept = ref$value, linetype = ref$linetype,
-                              color = ref$color, linewidth = 0.6)
-        } else {
-          p <- p + geom_hline(yintercept = ref$value, linetype = ref$linetype,
-                              color = ref$color, linewidth = 0.6)
-        }
-        if (nchar(ref$label) > 0) {
-          p <- p + annotate("text",
-            x = if (ref$axis == "x") ref$value else -Inf,
-            y = if (ref$axis == "y") ref$value else Inf,
-            label = ref$label, color = ref$color, size = 3.2,
-            hjust = if (ref$axis == "x") -0.1 else -0.05,
-            vjust = if (ref$axis == "y") -0.5 else 1.5)
-        }
-      }
-
-      # Axis ranges
-      x_lim <- c(if (!is.na(input$xmin)) input$xmin else NA,
-                 if (!is.na(input$xmax)) input$xmax else NA)
-      y_lim <- c(if (!is.na(input$ymin)) input$ymin else NA,
-                 if (!is.na(input$ymax)) input$ymax else NA)
-      if (!all(is.na(x_lim)))
-        p <- p + scale_x_continuous(limits = x_lim, expand = expansion(mult = 0.05))
-      else
-        p <- p + scale_x_continuous(expand = expansion(mult = 0.05))
-      if (!all(is.na(y_lim)))
-        p <- p + scale_y_continuous(limits = y_lim, expand = expansion(mult = 0.05))
-      else
-        p <- p + scale_y_continuous(expand = expansion(mult = 0.05))
-
-      return(p)
-    }
-
     # ── Determine Y2 series ─────────────────────────────
     y2_labels <- if (input$y2_enable && !is.null(input$y2_series)) input$y2_series else character(0)
 
@@ -1655,7 +1054,7 @@ server <- function(input, output, session) {
     )
 
     # ── Base plot ───────────────────────────────────────
-    font_size <- input$axis_text_size %||% 10
+    font_size <- input$axis_text_size %||% 12
     tick_inward <- (input$tick_dir %||% "in") != "out"
     p <- ggplot(plot_df, aes(x = x, y = y, color = series, shape = series)) +
       theme_academic(base_size = font_size,
@@ -1782,10 +1181,10 @@ server <- function(input, output, session) {
                           aes(x = x, y = y, color = series, shape = series, fill = series),
                           size = mk_size, stroke = 0.5)
     } else {
-      # No markers — use invisible line layer so legend shows colored line swatches
-      p <- p + geom_line(data = plot_df,
-                         aes(x = x, y = y, color = series),
-                         linewidth = 0, alpha = 0, show.legend = TRUE)
+      # No markers — still need a mapped layer for legend
+      p <- p + geom_point(data = plot_df,
+                          aes(x = x, y = y, color = series),
+                          alpha = 0, size = 0, show.legend = TRUE)
     }
 
     # ── Annotations ─────────────────────────────────────
@@ -1845,8 +1244,6 @@ server <- function(input, output, session) {
     if (mk_mode == "none") {
       legend_overrides$shape <- NA
       legend_overrides$size <- 0
-      legend_overrides$alpha <- 1
-      legend_overrides$linewidth <- lw
     }
 
     p <- p + guides(
@@ -1859,7 +1256,7 @@ server <- function(input, output, session) {
 
     # ── Labels ──────────────────────────────────────────
     title_sz <- input$title_size %||% 16
-    label_sz <- input$axis_label_size %||% 12
+    label_sz <- input$axis_label_size %||% 14
     leg_sz   <- input$legend_size %||% 10
 
     x_lab <- parse_label(input$xlabel)
@@ -2121,6 +1518,202 @@ server <- function(input, output, session) {
         ggsave(file, plot = p, width = w, height = h, dpi = dpi,
                device = fmt, bg = "white")
       }
+    }
+  )
+
+  # ══════════════════════════════════════════════════════
+  #  PROFILE MATRIX (Appendix Figures A1/A2)
+  # ══════════════════════════════════════════════════════
+
+  # Sheet selector for the matrix tab
+  output$matrix_sheet_selector <- renderUI({
+    req(rv$sheet_names)
+    selectInput("matrix_sheet", "Sheet", choices = rv$sheet_names)
+  })
+
+  # Reactive: parse paired-column data into long format
+  matrix_data <- reactiveVal(NULL)
+
+  observeEvent(input$matrix_load_btn, {
+    req(rv$raw_data, input$matrix_sheet)
+    df <- rv$raw_data[[input$matrix_sheet]]
+    req(df)
+
+    nc <- ncol(df)
+    if (nc < 2 || nc %% 2 != 0) {
+      showNotification("Sheet must have an even number of columns (X,Y pairs)", type = "error")
+      return()
+    }
+
+    n_panels <- nc %/% 2
+    prefix <- input$matrix_panel_prefix %||% "Year"
+    long_list <- list()
+
+    for (i in seq_len(n_panels)) {
+      x_idx <- (i - 1) * 2 + 1
+      y_idx <- (i - 1) * 2 + 2
+
+      x_vals <- suppressWarnings(as.numeric(df[[x_idx]]))
+      y_vals <- suppressWarnings(as.numeric(df[[y_idx]]))
+      valid <- !is.na(x_vals) & !is.na(y_vals)
+
+      if (sum(valid) == 0) next
+
+      # Extract case label from header
+      raw_label <- colnames(df)[y_idx]
+      case_label <- raw_label
+      m <- regmatches(raw_label, regexpr('"([^"]+)\\.ppl"', raw_label, perl = TRUE))
+      if (length(m) > 0 && nchar(m) > 0) {
+        case_label <- gsub('^"|"$', "", gsub("\\.ppl", "", m))
+      }
+
+      panel_label <- paste(prefix, i)
+
+      long_list[[i]] <- data.frame(
+        x = x_vals[valid],
+        y = y_vals[valid],
+        panel = panel_label,
+        case_label = case_label,
+        panel_idx = i,
+        stringsAsFactors = FALSE
+      )
+    }
+
+    if (length(long_list) == 0) {
+      showNotification("No valid data pairs found", type = "error")
+      return()
+    }
+
+    long_df <- do.call(rbind, long_list)
+    # Order panels by index
+    long_df$panel <- factor(long_df$panel,
+                            levels = paste(prefix, seq_len(n_panels)))
+
+    matrix_data(long_df)
+
+    # Auto-set labels from sheet name
+    sheet_nm <- input$matrix_sheet
+    if (grepl("pressure", sheet_nm, ignore.case = TRUE)) {
+      updateTextInput(session, "matrix_ylabel", value = "Pressure [bara]")
+      updateTextInput(session, "matrix_title",
+                      value = "Complete Pressure Profile Matrix")
+      updateTextInput(session, "matrix_export_filename",
+                      value = "appendix_figure_A1_pressure_profile")
+    } else if (grepl("temperature", sheet_nm, ignore.case = TRUE)) {
+      updateTextInput(session, "matrix_ylabel", value = "Temperature [\u00b0C]")
+      updateTextInput(session, "matrix_title",
+                      value = "Complete Temperature Profile Matrix")
+      updateTextInput(session, "matrix_export_filename",
+                      value = "appendix_figure_A2_temperature_profile")
+    }
+
+    showNotification(
+      paste0("\u2713 ", n_panels, " panels loaded from \"", sheet_nm, "\""),
+      type = "message", duration = 4
+    )
+  })
+
+  # Build the matrix plot
+  build_matrix_plot <- reactive({
+    long_df <- matrix_data()
+
+    if (is.null(long_df)) {
+      p <- ggplot() + theme_academic(base_size = 14) +
+        annotate("text", x = 0.5, y = 0.5,
+                 label = "Upload data and click 'Generate Matrix' to create profile plots",
+                 size = 5, color = "#999999", fontface = "italic") +
+        xlim(0, 1) + ylim(0, 1) +
+        theme(axis.title = element_blank(), axis.text = element_blank(),
+              axis.ticks = element_blank(), panel.border = element_blank(),
+              axis.line = element_blank())
+      return(p)
+    }
+
+    base_sz <- input$matrix_base_size %||% 11
+    strip_sz <- input$matrix_strip_size %||% 10
+    lw <- input$matrix_line_weight %||% 0.7
+    pal <- PALETTES[[input$matrix_palette %||% "Classic Academic"]]
+    n_panels <- length(unique(long_df$panel))
+
+    # Determine facet scales
+    scales_arg <- "fixed"
+    if (isTRUE(input$matrix_free_y) && isTRUE(input$matrix_free_x)) {
+      scales_arg <- "free"
+    } else if (isTRUE(input$matrix_free_y)) {
+      scales_arg <- "free_y"
+    } else if (isTRUE(input$matrix_free_x)) {
+      scales_arg <- "free_x"
+    }
+
+    ncol_val <- input$matrix_ncol %||% 5
+
+    # Assign one color per panel
+    panel_levels <- levels(long_df$panel)
+    color_map <- setNames(
+      pal[((seq_along(panel_levels) - 1) %% length(pal)) + 1],
+      panel_levels
+    )
+
+    p <- ggplot(long_df, aes(x = x, y = y, color = panel)) +
+      geom_line(linewidth = lw, show.legend = FALSE) +
+      facet_wrap(~ panel, ncol = ncol_val, scales = scales_arg) +
+      scale_color_manual(values = color_map) +
+      theme_academic(base_size = base_sz,
+                     grid = input$matrix_grid %||% "major",
+                     border = TRUE, ticks_inward = TRUE) +
+      theme(
+        strip.text = element_text(size = strip_sz, face = "bold",
+                                  color = "#1a1714",
+                                  margin = margin(4, 0, 4, 0)),
+        strip.background = element_rect(fill = "white", color = "#1a1a1a",
+                                        linewidth = 0.5),
+        panel.spacing = unit(1, "lines")
+      )
+
+    # Labels
+    x_lab <- parse_label(input$matrix_xlabel %||% "Pipeline Length [m]")
+    y_lab <- parse_label(input$matrix_ylabel %||% "")
+    t_lab <- input$matrix_title %||% ""
+
+    p <- p + labs(x = x_lab, y = y_lab)
+
+    if (nchar(t_lab) > 0) {
+      p <- p + ggtitle(t_lab) +
+        theme(plot.title = element_text(size = base_sz + 4, face = "bold",
+                                        hjust = 0.5, margin = margin(b = 10)))
+    }
+
+    # Legend
+    leg_pos <- input$matrix_legend_pos %||% "bottom"
+    if (leg_pos == "none") {
+      p <- p + theme(legend.position = "none")
+    } else {
+      p <- p + theme(legend.position = leg_pos) +
+        guides(color = guide_legend(ncol = input$matrix_legend_cols %||% 5))
+    }
+
+    p
+  })
+
+  # Render matrix plot
+  output$matrix_plot <- renderPlot({
+    build_matrix_plot()
+  }, res = 96, execOnResize = TRUE)
+
+  # Export matrix plot
+  output$matrix_download <- downloadHandler(
+    filename = function() {
+      paste0(input$matrix_export_filename %||% "appendix_figure",
+             ".", input$matrix_export_fmt %||% "pdf")
+    },
+    content = function(file) {
+      p   <- build_matrix_plot()
+      w   <- input$matrix_export_w %||% 14
+      h   <- input$matrix_export_h %||% 8
+      dpi <- input$matrix_export_dpi %||% 300
+      fmt <- input$matrix_export_fmt %||% "pdf"
+      ggsave(file, plot = p, width = w, height = h, dpi = dpi,
+             device = fmt, bg = "white")
     }
   )
 }
