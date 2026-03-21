@@ -91,7 +91,7 @@ JOURNAL_PRESETS <- list(
 )
 
 # ── Water cut mapping for production years (C01–C10) ─────────────────────────
-WATER_CUTS <- c(0, 11, 24, 36, 54, 62, 72, 82, 90, 96)
+WATER_CUTS <- c(0, 5, 25, 50, 65, 75, 85, 92, 95, 96.2)
 CASE_LABELS <- paste0("C", sprintf("%02d", 1:10))
 YEAR_LABELS <- paste("Year", 1:10)
 
@@ -646,11 +646,11 @@ ui <- page_navbar(
               ),
               column(4,
                 selectInput("slug_panel_b", "Panel B", choices = 1:10, selected = 5),
-                textInput("slug_label_b", "Label", value = "Year 5 (54% WC)")
+                textInput("slug_label_b", "Label", value = "Year 5 (65% WC)")
               ),
               column(4,
                 selectInput("slug_panel_c", "Panel C", choices = 1:10, selected = 10),
-                textInput("slug_label_c", "Label", value = "Year 10 (96% WC)")
+                textInput("slug_label_c", "Label", value = "Year 10 (96.2% WC)")
               )
             )
           ),
@@ -667,23 +667,23 @@ ui <- page_navbar(
                      style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
             fluidRow(
               column(6, numericInput("wc_1", "Year 1", value = 0, min = 0, max = 100)),
-              column(6, numericInput("wc_2", "Year 2", value = 11, min = 0, max = 100))
+              column(6, numericInput("wc_2", "Year 2", value = 5, min = 0, max = 100))
             ),
             fluidRow(
-              column(6, numericInput("wc_3", "Year 3", value = 24, min = 0, max = 100)),
-              column(6, numericInput("wc_4", "Year 4", value = 36, min = 0, max = 100))
+              column(6, numericInput("wc_3", "Year 3", value = 25, min = 0, max = 100)),
+              column(6, numericInput("wc_4", "Year 4", value = 50, min = 0, max = 100))
             ),
             fluidRow(
-              column(6, numericInput("wc_5", "Year 5", value = 54, min = 0, max = 100)),
-              column(6, numericInput("wc_6", "Year 6", value = 62, min = 0, max = 100))
+              column(6, numericInput("wc_5", "Year 5", value = 65, min = 0, max = 100)),
+              column(6, numericInput("wc_6", "Year 6", value = 75, min = 0, max = 100))
             ),
             fluidRow(
-              column(6, numericInput("wc_7", "Year 7", value = 72, min = 0, max = 100)),
-              column(6, numericInput("wc_8", "Year 8", value = 82, min = 0, max = 100))
+              column(6, numericInput("wc_7", "Year 7", value = 85, min = 0, max = 100)),
+              column(6, numericInput("wc_8", "Year 8", value = 92, min = 0, max = 100))
             ),
             fluidRow(
-              column(6, numericInput("wc_9", "Year 9", value = 90, min = 0, max = 100)),
-              column(6, numericInput("wc_10", "Year 10", value = 96, min = 0, max = 100))
+              column(6, numericInput("wc_9", "Year 9", value = 95, min = 0, max = 100)),
+              column(6, numericInput("wc_10", "Year 10", value = 96.2, min = 0, max = 100))
             )
           ),
 
