@@ -2954,7 +2954,7 @@ server <- function(input, output, session) {
       theme(
         strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
         strip.text = element_text(size = opts$label_size * 0.85, face = "bold",
-                                   color = "#1a1714", margin = margin(t = 4, b = 4)),
+                                   color = "#1a1714", margin = margin(t = 6, b = 6)),
         panel.spacing = unit(12, "pt"),
         plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
                                    margin = margin(b = 8)),
@@ -3223,7 +3223,7 @@ server <- function(input, output, session) {
             c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)", "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))) +
           theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
           theme(strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
-                strip.text = element_text(size = opts$label_size * 0.85, face = "bold"),
+                strip.text = element_text(size = opts$label_size * 0.85, face = "bold", margin = margin(t = 6, b = 6)),
                 plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5),
                 axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size),
                 legend.position = "none") +
