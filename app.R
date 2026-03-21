@@ -1804,10 +1804,10 @@ server <- function(input, output, session) {
   #  TRANSIENT ANALYSIS (Shutdown & Restart Figures)
   # ══════════════════════════════════════════════════════
 
-  # Nature palette: Year 1 = colour 1 (red), Year 10 = colour 4 (dark blue)
+  # Nature palette: colour assigned by year index (Year 1 = #1, Year 10 = #10)
   NATURE_PAL <- PALETTES[["Nature"]]
-  YEAR1_COL  <- NATURE_PAL[1]   # #E64B35 (red)
-  YEAR10_COL <- NATURE_PAL[4]   # #3C5488 (dark blue)
+  YEAR1_COL  <- NATURE_PAL[1]    # #E64B35 (red)
+  YEAR10_COL <- NATURE_PAL[10]   # #B09C85 (tan)
 
   # Reactive: hold the built transient plot and caption
 
@@ -2125,22 +2125,19 @@ server <- function(input, output, session) {
       peak_p   <- df_y1_p1$pressure[peak_idx]
       peak_t   <- df_y1_p1$time[peak_idx]
 
-      # Colours: Inlet = Nature[1] (red-ish), Outlet = Nature[3] (green)
-      inlet_col  <- YEAR1_COL
-      outlet_col <- NATURE_PAL[3]  # #00A087
-
+      # Colour by year (Nature palette index), linetype by location (inlet/outlet)
       p <- ggplot(plot_df, aes(x = time, y = pressure, color = series, linetype = series)) +
         geom_line(linewidth = lw) +
         scale_color_manual(values = c(
-          "Year 1 Inlet (PIPE-1)"   = inlet_col,
-          "Year 1 Outlet (PIPE-7)"  = outlet_col,
-          "Year 10 Inlet (PIPE-1)"  = inlet_col,
-          "Year 10 Outlet (PIPE-7)" = outlet_col
+          "Year 1 Inlet (PIPE-1)"   = YEAR1_COL,
+          "Year 1 Outlet (PIPE-7)"  = YEAR1_COL,
+          "Year 10 Inlet (PIPE-1)"  = YEAR10_COL,
+          "Year 10 Outlet (PIPE-7)" = YEAR10_COL
         )) +
         scale_linetype_manual(values = c(
           "Year 1 Inlet (PIPE-1)"   = "solid",
-          "Year 1 Outlet (PIPE-7)"  = "solid",
-          "Year 10 Inlet (PIPE-1)"  = "dashed",
+          "Year 1 Outlet (PIPE-7)"  = "dashed",
+          "Year 10 Inlet (PIPE-1)"  = "solid",
           "Year 10 Outlet (PIPE-7)" = "dashed"
         )) +
         # 60 bara limit
@@ -2152,14 +2149,14 @@ server <- function(input, output, session) {
         annotate("text", x = 1.8, y = 33, label = "Separator Pressure",
                  color = "#1a1a1a", size = 3.2, vjust = 1.5, hjust = 1) +
         # Peak pressure annotation
-        annotate("point", x = peak_t, y = peak_p, size = 3, color = inlet_col, shape = 16) +
+        annotate("point", x = peak_t, y = peak_p, size = 3, color = YEAR1_COL, shape = 16) +
         annotate("segment", x = peak_t, xend = peak_t,
                  y = peak_p, yend = peak_p + 1.5,
-                 color = inlet_col, linewidth = 0.4,
+                 color = YEAR1_COL, linewidth = 0.4,
                  arrow = arrow(length = unit(4, "pt"), type = "closed")) +
         annotate("label", x = peak_t, y = peak_p + 2,
                  label = paste0("Peak: ", round(peak_p, 2), " bara\nat t=", round(peak_t, 2), " hr"),
-                 color = inlet_col, fill = alpha("white", 0.92),
+                 color = YEAR1_COL, fill = alpha("white", 0.92),
                  label.size = 0.25, size = 2.8, label.padding = unit(3, "pt")) +
         # Margin annotation
         annotate("label", x = 1.5, y = 59,
