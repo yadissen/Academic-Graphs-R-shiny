@@ -545,7 +545,10 @@ ui <- page_navbar(
                           "Fig 4.15: Temperature Cooldown Profiles" = "fig415",
                           "Fig 4.16: Cooldown Rate Comparison"      = "fig416",
                           "Fig 4.17: Pressure Build-Up (Restart)"   = "fig417",
-                          "Fig 4.18: Liquid Flow Rate Ramp-Up"      = "fig418"
+                          "Fig 4.18: Liquid Flow Rate Ramp-Up"      = "fig418",
+                          "Fig A.1: Detailed Cooldown (0\u20136 hr)"     = "figA1",
+                          "Fig A.2: Exponential Curve Fit"           = "figA2",
+                          "Fig A.3: Pressure Transient (24 hr)"      = "figA3"
                         ),
                         selected = "fig415"),
             actionButton("transient_generate_btn", "Generate Plot",
@@ -2298,6 +2301,361 @@ server <- function(input, output, session) {
       updateTextInput(session, "trans_export_filename", value = "figure_4_18_flow_rate_restart")
     }
 
+    # ────────────────────────────────────────────────────
+    #  FIGURE A.1: Detailed Shutdown Cooldown — First 6 Hours
+    # ────────────────────────────────────────────────────
+    else if (fig_type == "figA1") {
+      sd <- load_shutdown()
+      req(sd)
+
+      df1 <- data.frame(
+        time = suppressWarnings(as.numeric(sd$year1[[3]])),
+        temp = suppressWarnings(as.numeric(sd$year1[[2]]))
+      )
+      df10 <- data.frame(
+        time = suppressWarnings(as.numeric(sd$year10[[3]])),
+        temp = suppressWarnings(as.numeric(sd$year10[[2]]))
+      )
+      df1  <- df1[!is.na(df1$time) & !is.na(df1$temp), ]
+      df10 <- df10[!is.na(df10$time) & !is.na(df10$temp), ]
+
+      # Zoom to 6 hours
+      df1  <- df1[df1$time <= 6, ]
+      df10 <- df10[df10$time <= 6, ]
+
+      # Instantaneous cooldown rate at integer hours via finite difference
+      inst_rate <- function(df, t_target) {
+        dt <- 0.05  # half-window in hours
+        idx_lo <- which.min(abs(df$time - (t_target - dt)))
+        idx_hi <- which.min(abs(df$time - (t_target + dt)))
+        if (idx_lo == idx_hi) return(NA)
+        -(df$temp[idx_hi] - df$temp[idx_lo]) / (df$time[idx_hi] - df$time[idx_lo])
+      }
+
+      df1$year  <- "Year 1 (0% WC)"
+      df10$year <- "Year 10 (96% WC)"
+      plot_df <- rbind(df1, df10)
+      plot_df$year <- factor(plot_df$year, levels = c("Year 1 (0% WC)", "Year 10 (96% WC)"))
+
+      # Shaded zones
+      p <- ggplot(plot_df, aes(x = time, y = temp, color = year, linetype = year)) +
+        annotate("rect", xmin = 0, xmax = 6, ymin = 32, ymax = Inf,
+                 fill = "#2e6b45", alpha = 0.07) +
+        annotate("text", x = 5.8, y = 40, label = "Safe Operation",
+                 color = "#2e6b45", size = 3, fontface = "italic", hjust = 1) +
+        annotate("rect", xmin = 0, xmax = 6, ymin = 25, ymax = 32,
+                 fill = "#E18727", alpha = 0.07) +
+        annotate("text", x = 5.8, y = 28.5, label = "Wax Risk Zone",
+                 color = "#E18727", size = 3, fontface = "italic", hjust = 1) +
+        annotate("rect", xmin = 0, xmax = 6, ymin = -Inf, ymax = 25,
+                 fill = "#7876B1", alpha = 0.07) +
+        annotate("text", x = 5.8, y = 22, label = "Hydrate Risk Zone",
+                 color = "#7876B1", size = 3, fontface = "italic", hjust = 1) +
+        # Reference lines
+        geom_hline(yintercept = 32, linetype = "dashed", color = "#E18727", linewidth = 0.5) +
+        geom_hline(yintercept = 25, linetype = "dashed", color = "#7876B1", linewidth = 0.5) +
+        # Data
+        geom_line(linewidth = lw) +
+        scale_color_manual(values = c("Year 1 (0% WC)" = YEAR1_COL, "Year 10 (96% WC)" = YEAR10_COL)) +
+        scale_linetype_manual(values = c("Year 1 (0% WC)" = "solid", "Year 10 (96% WC)" = "dashed"))
+
+      # Add instantaneous cooldown rate annotations at t = 1, 2, 3, 4, 5 hr
+      # Use Year 1 data for annotations (cleaner)
+      df1_full <- df1  # already zoomed to 6hr
+      for (th in 1:5) {
+        rate <- inst_rate(df1_full, th)
+        if (!is.na(rate)) {
+          temp_at_t <- df1_full$temp[which.min(abs(df1_full$time - th))]
+          p <- p + annotate("label", x = th, y = temp_at_t + 1.5,
+                            label = paste0(round(rate, 1), "\u00b0C/hr"),
+                            color = "#555555", fill = alpha("white", 0.9),
+                            label.size = 0.2, size = 2.5, label.padding = unit(2, "pt"))
+        }
+      }
+
+      p <- p +
+        scale_x_continuous(limits = c(0, 6), breaks = 0:6, expand = expansion(mult = 0.02)) +
+        scale_y_continuous(expand = expansion(mult = 0.05)) +
+        labs(x = "Time (hours)", y = "Temperature (\u00b0C)",
+             title = "Detailed Shutdown Cooldown \u2014 First 6 Hours") +
+        theme_academic(base_size = text_sz, grid = grid_type, border = TRUE, ticks_inward = TRUE) +
+        theme(
+          plot.title    = element_text(size = title_sz, face = "bold", hjust = 0.5, margin = margin(b = 8)),
+          axis.title    = element_text(size = label_sz),
+          axis.text     = element_text(size = text_sz),
+          legend.text   = element_text(size = leg_sz),
+          legend.position = c(0.98, 0.98),
+          legend.justification = c(1, 1),
+          legend.position.inside = c(0.98, 0.98)
+        ) +
+        guides(color = guide_legend(ncol = 1), linetype = guide_legend(ncol = 1))
+
+      cap <- paste0(
+        "Zoomed view of the critical initial cooldown phase (0\u20136 hours). ",
+        "Shaded zones indicate safe operation (>32\u00b0C), wax risk (25\u201332\u00b0C), ",
+        "and hydrate risk (<25\u00b0C). Instantaneous cooldown rates annotated at hourly intervals."
+      )
+
+      transient_result(list(plot = p, caption = cap))
+      updateTextInput(session, "trans_export_filename", value = "appendix_figure_A1_cooldown_detail")
+    }
+
+    # ────────────────────────────────────────────────────
+    #  FIGURE A.2: Exponential Curve Fitting for Cooldown
+    # ────────────────────────────────────────────────────
+    else if (fig_type == "figA2") {
+      sd <- load_shutdown()
+      req(sd)
+
+      df1 <- data.frame(
+        time = suppressWarnings(as.numeric(sd$year1[[3]])),
+        temp = suppressWarnings(as.numeric(sd$year1[[2]]))
+      )
+      df10 <- data.frame(
+        time = suppressWarnings(as.numeric(sd$year10[[3]])),
+        temp = suppressWarnings(as.numeric(sd$year10[[2]]))
+      )
+      df1  <- df1[!is.na(df1$time) & !is.na(df1$temp), ]
+      df10 <- df10[!is.na(df10$time) & !is.na(df10$temp), ]
+
+      # Fit exponential: T(t) = T_amb + (T_init - T_amb) * exp(-t / tau)
+      # Rearrange: (T - T_amb) / (T_init - T_amb) = exp(-t/tau)
+      # -> log((T - T_amb) / (T_init - T_amb)) = -t/tau
+      # Use ambient temperature as final temperature approximation
+      fit_exp <- function(df) {
+        T_init <- df$temp[1]
+        T_amb  <- min(df$temp)  # approximate ambient as minimum temperature
+        # Ensure we don't log(0) or negative
+        delta <- df$temp - T_amb
+        delta[delta <= 0] <- 0.01
+        ratio <- delta / (T_init - T_amb)
+        ratio[ratio <= 0] <- 0.001
+        # Linear fit on log-transformed data
+        log_ratio <- log(ratio)
+        fit <- lm(log_ratio ~ df$time)
+        tau <- -1 / coef(fit)[2]
+        # Calculate R-squared on original scale
+        predicted <- T_amb + (T_init - T_amb) * exp(-df$time / tau)
+        ss_res <- sum((df$temp - predicted)^2)
+        ss_tot <- sum((df$temp - mean(df$temp))^2)
+        r_sq <- 1 - ss_res / ss_tot
+        list(tau = tau, T_init = T_init, T_amb = T_amb, r_sq = r_sq, predicted = predicted)
+      }
+
+      fit1  <- fit_exp(df1)
+      fit10 <- fit_exp(df10)
+
+      # Subsample data for scatter points (every ~50th point for clarity)
+      n_skip <- max(1, floor(nrow(df1) / 150))
+      df1_pts  <- df1[seq(1, nrow(df1), by = n_skip), ]
+      df10_pts <- df10[seq(1, nrow(df10), by = n_skip), ]
+
+      # Build fitted curve data (smooth)
+      t_seq <- seq(0, 24, length.out = 500)
+      fit_df1 <- data.frame(
+        time = t_seq,
+        temp = fit1$T_amb + (fit1$T_init - fit1$T_amb) * exp(-t_seq / fit1$tau),
+        year = "Year 1 (fit)"
+      )
+      fit_df10 <- data.frame(
+        time = t_seq,
+        temp = fit10$T_amb + (fit10$T_init - fit10$T_amb) * exp(-t_seq / fit10$tau),
+        year = "Year 10 (fit)"
+      )
+
+      df1_pts$year  <- "Year 1 (data)"
+      df10_pts$year <- "Year 10 (data)"
+
+      p <- ggplot() +
+        # Scatter points
+        geom_point(data = df1_pts, aes(x = time, y = temp),
+                   color = YEAR1_COL, shape = 21, fill = YEAR1_COL, size = 1.5, alpha = 0.5, stroke = 0.3) +
+        geom_point(data = df10_pts, aes(x = time, y = temp),
+                   color = YEAR10_COL, shape = 21, fill = YEAR10_COL, size = 1.5, alpha = 0.5, stroke = 0.3) +
+        # Fitted curves
+        geom_line(data = fit_df1, aes(x = time, y = temp),
+                  color = YEAR1_COL, linewidth = lw, linetype = "solid") +
+        geom_line(data = fit_df10, aes(x = time, y = temp),
+                  color = YEAR10_COL, linewidth = lw, linetype = "solid") +
+        # Equation annotation — Year 1
+        annotate("label", x = 14, y = fit1$T_init - 2,
+                 label = paste0(
+                   "Year 1: T(t) = ", round(fit1$T_amb, 1),
+                   " + ", round(fit1$T_init - fit1$T_amb, 1),
+                   " \u00d7 exp(-t/", round(fit1$tau, 2), ")\n",
+                   "\u03c4 = ", round(fit1$tau, 2), " hr   R\u00b2 = ", round(fit1$r_sq, 4)
+                 ),
+                 color = YEAR1_COL, fill = alpha("white", 0.92),
+                 label.size = 0.25, size = 2.8, label.padding = unit(4, "pt"),
+                 hjust = 0) +
+        # Equation annotation — Year 10
+        annotate("label", x = 14, y = fit10$T_init - 2,
+                 label = paste0(
+                   "Year 10: T(t) = ", round(fit10$T_amb, 1),
+                   " + ", round(fit10$T_init - fit10$T_amb, 1),
+                   " \u00d7 exp(-t/", round(fit10$tau, 2), ")\n",
+                   "\u03c4 = ", round(fit10$tau, 2), " hr   R\u00b2 = ", round(fit10$r_sq, 4)
+                 ),
+                 color = YEAR10_COL, fill = alpha("white", 0.92),
+                 label.size = 0.25, size = 2.8, label.padding = unit(4, "pt"),
+                 hjust = 0) +
+        # Manual legend using annotate
+        annotate("point", x = c(1, 1), y = c(fit1$T_amb + 3, fit1$T_amb + 1),
+                 color = c(YEAR1_COL, YEAR10_COL), shape = 16, size = 2.5) +
+        annotate("text", x = c(1.5, 1.5), y = c(fit1$T_amb + 3, fit1$T_amb + 1),
+                 label = c("Year 1", "Year 10"),
+                 color = c(YEAR1_COL, YEAR10_COL), size = 3, hjust = 0) +
+        scale_x_continuous(limits = c(0, 24), expand = expansion(mult = 0.02)) +
+        scale_y_continuous(expand = expansion(mult = 0.05)) +
+        labs(x = "Time (hours)", y = "Temperature (\u00b0C)",
+             title = "Exponential Curve Fitting for Cooldown") +
+        theme_academic(base_size = text_sz, grid = grid_type, border = TRUE, ticks_inward = TRUE) +
+        theme(
+          plot.title    = element_text(size = title_sz, face = "bold", hjust = 0.5, margin = margin(b = 8)),
+          axis.title    = element_text(size = label_sz),
+          axis.text     = element_text(size = text_sz),
+          legend.position = "none"
+        )
+
+      cap <- paste0(
+        "Exponential curve fitting for cooldown profiles. ",
+        "Year 1: thermal time constant \u03c4 = ", round(fit1$tau, 2), " hr (R\u00b2 = ", round(fit1$r_sq, 4), "). ",
+        "Year 10: \u03c4 = ", round(fit10$tau, 2), " hr (R\u00b2 = ", round(fit10$r_sq, 4), "). ",
+        "Fitted equation: T(t) = T_ambient + (T_initial \u2212 T_ambient) \u00d7 exp(\u2212t/\u03c4)."
+      )
+
+      transient_result(list(plot = p, caption = cap))
+      updateTextInput(session, "trans_export_filename", value = "appendix_figure_A2_exponential_fit")
+    }
+
+    # ────────────────────────────────────────────────────
+    #  FIGURE A.3: Pressure Transient — Extended 24-Hour View
+    # ────────────────────────────────────────────────────
+    else if (fig_type == "figA3") {
+      rd <- load_restart()
+      req(rd)
+
+      # Full 24hr data — convert seconds to hours
+      df_y1_p1 <- data.frame(
+        time = suppressWarnings(as.numeric(rd$year1[[1]])) / 3600,
+        pressure = suppressWarnings(as.numeric(rd$year1[[2]]))
+      )
+      df_y1_p7 <- data.frame(
+        time = suppressWarnings(as.numeric(rd$year1[[3]])) / 3600,
+        pressure = suppressWarnings(as.numeric(rd$year1[[4]]))
+      )
+      df_y10_p1 <- data.frame(
+        time = suppressWarnings(as.numeric(rd$year10[[1]])) / 3600,
+        pressure = suppressWarnings(as.numeric(rd$year10[[2]]))
+      )
+      df_y10_p7 <- data.frame(
+        time = suppressWarnings(as.numeric(rd$year10[[3]])) / 3600,
+        pressure = suppressWarnings(as.numeric(rd$year10[[4]]))
+      )
+
+      df_y1_p1  <- df_y1_p1[!is.na(df_y1_p1$time) & !is.na(df_y1_p1$pressure), ]
+      df_y1_p7  <- df_y1_p7[!is.na(df_y1_p7$time) & !is.na(df_y1_p7$pressure), ]
+      df_y10_p1 <- df_y10_p1[!is.na(df_y10_p1$time) & !is.na(df_y10_p1$pressure), ]
+      df_y10_p7 <- df_y10_p7[!is.na(df_y10_p7$time) & !is.na(df_y10_p7$pressure), ]
+
+      df_y1_p1$series  <- "Year 1 Inlet (PIPE-1)"
+      df_y1_p7$series  <- "Year 1 Outlet (PIPE-7)"
+      df_y10_p1$series <- "Year 10 Inlet (PIPE-1)"
+      df_y10_p7$series <- "Year 10 Outlet (PIPE-7)"
+
+      plot_df <- rbind(df_y1_p1, df_y1_p7, df_y10_p1, df_y10_p7)
+      plot_df$series <- factor(plot_df$series,
+                                levels = c("Year 1 Inlet (PIPE-1)", "Year 1 Outlet (PIPE-7)",
+                                           "Year 10 Inlet (PIPE-1)", "Year 10 Outlet (PIPE-7)"))
+
+      # 99% of final steady-state for inlet pressure
+      ss_y1  <- tail(df_y1_p1$pressure, 1)
+      ss_y10 <- tail(df_y10_p1$pressure, 1)
+      thr_y1  <- ss_y1 * 0.99
+      thr_y10 <- ss_y10 * 0.99
+
+      find_99_time <- function(df, thr) {
+        idx <- which(df$pressure >= thr)
+        if (length(idx) == 0) return(NA)
+        df$time[idx[1]]
+      }
+      t99_y1  <- find_99_time(df_y1_p1, thr_y1)
+      t99_y10 <- find_99_time(df_y10_p1, thr_y10)
+
+      p <- ggplot(plot_df, aes(x = time, y = pressure, color = series, linetype = series)) +
+        geom_line(linewidth = lw) +
+        scale_color_manual(values = c(
+          "Year 1 Inlet (PIPE-1)"   = YEAR1_COL,
+          "Year 1 Outlet (PIPE-7)"  = YEAR1_COL,
+          "Year 10 Inlet (PIPE-1)"  = YEAR10_COL,
+          "Year 10 Outlet (PIPE-7)" = YEAR10_COL
+        )) +
+        scale_linetype_manual(values = c(
+          "Year 1 Inlet (PIPE-1)"   = "solid",
+          "Year 1 Outlet (PIPE-7)"  = "dashed",
+          "Year 10 Inlet (PIPE-1)"  = "solid",
+          "Year 10 Outlet (PIPE-7)" = "dashed"
+        )) +
+        # 60 bara limit
+        geom_hline(yintercept = 60, linetype = "dashed", color = "#DC0000", linewidth = 0.5) +
+        annotate("text", x = 22, y = 60, label = "Inlet Pressure Constraint",
+                 color = "#DC0000", size = 3, vjust = -0.5, hjust = 1) +
+        # 33 bara separator
+        geom_hline(yintercept = 33, linetype = "dotted", color = "#1a1a1a", linewidth = 0.4) +
+        annotate("text", x = 22, y = 33, label = "Separator Pressure",
+                 color = "#1a1a1a", size = 3, vjust = 1.5, hjust = 1)
+
+      # 99% steady-state annotations
+      if (!is.na(t99_y1)) {
+        p <- p + annotate("segment", x = t99_y1, xend = t99_y1,
+                          y = thr_y1, yend = thr_y1 + 3,
+                          color = YEAR1_COL, linewidth = 0.4,
+                          arrow = arrow(length = unit(4, "pt"), type = "closed")) +
+          annotate("label", x = t99_y1, y = thr_y1 + 4,
+                   label = paste0("Year 1: 99% SS at ", round(t99_y1, 1), " hr"),
+                   color = YEAR1_COL, fill = alpha("white", 0.92),
+                   label.size = 0.25, size = 2.8, label.padding = unit(3, "pt"))
+      }
+      if (!is.na(t99_y10)) {
+        p <- p + annotate("segment", x = t99_y10, xend = t99_y10,
+                          y = thr_y10, yend = thr_y10 - 3,
+                          color = YEAR10_COL, linewidth = 0.4,
+                          arrow = arrow(length = unit(4, "pt"), type = "closed")) +
+          annotate("label", x = t99_y10, y = thr_y10 - 4,
+                   label = paste0("Year 10: 99% SS at ", round(t99_y10, 1), " hr"),
+                   color = YEAR10_COL, fill = alpha("white", 0.92),
+                   label.size = 0.25, size = 2.8, label.padding = unit(3, "pt"))
+      }
+
+      p <- p +
+        scale_x_continuous(limits = c(0, 24), expand = expansion(mult = 0.02)) +
+        scale_y_continuous(expand = expansion(mult = 0.05)) +
+        labs(x = "Time (hours)", y = "Pressure (bara)",
+             title = "Pressure Transient \u2014 Extended 24-Hour View") +
+        theme_academic(base_size = text_sz, grid = grid_type, border = TRUE, ticks_inward = TRUE) +
+        theme(
+          plot.title    = element_text(size = title_sz, face = "bold", hjust = 0.5, margin = margin(b = 8)),
+          axis.title    = element_text(size = label_sz),
+          axis.text     = element_text(size = text_sz),
+          legend.text   = element_text(size = leg_sz),
+          legend.position = c(0.98, 0.50),
+          legend.justification = c(1, 0.5),
+          legend.position.inside = c(0.98, 0.50)
+        ) +
+        guides(color = guide_legend(ncol = 1), linetype = guide_legend(ncol = 1))
+
+      cap <- paste0(
+        "Complete 24-hour pressure transient during restart. ",
+        "Year 1 inlet reaches 99% of steady-state (", round(ss_y1, 1), " bara) at ",
+        round(t99_y1, 1), " hr. ",
+        "Year 10 inlet reaches 99% of steady-state (", round(ss_y10, 1), " bara) at ",
+        round(t99_y10, 1), " hr."
+      )
+
+      transient_result(list(plot = p, caption = cap))
+      updateTextInput(session, "trans_export_filename", value = "appendix_figure_A3_pressure_24hr")
+    }
+
     showNotification("\u2713 Transient plot generated", type = "message", duration = 3)
   })
 
@@ -2331,6 +2689,9 @@ server <- function(input, output, session) {
       "fig416" = "Figure 4.16",
       "fig417" = "Figure 4.17",
       "fig418" = "Figure 4.18",
+      "figA1"  = "Figure A.1",
+      "figA2"  = "Figure A.2",
+      "figA3"  = "Figure A.3",
       "")
   })
 
