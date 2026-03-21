@@ -745,6 +745,18 @@ ui <- page_navbar(
           plotOutput("slug_plot_amplitude", height = "550px")
         ),
 
+        nav_panel("PT PIPE-1 All Years",
+          plotOutput("slug_plot_pt1_all", height = "900px")
+        ),
+
+        nav_panel("PT PIPE-7 All Years",
+          plotOutput("slug_plot_pt7_all", height = "900px")
+        ),
+
+        nav_panel("QLT PIPE-7 All Years",
+          plotOutput("slug_plot_qlt_all", height = "900px")
+        ),
+
         nav_panel("Metrics Table",
           tableOutput("slug_metrics_table")
         )
@@ -2511,6 +2523,161 @@ server <- function(input, output, session) {
     )
   }, res = 96)
 
+  # ── Appendix: All Years (2×5 grid) ──────────────────────
+  # Shared builder for 10-panel plots
+  build_slug_all_years <- function(data_list, sheet_name, y_label, title,
+                                    t_start, t_window, pal, opts,
+                                    var_symbol = "P") {
+    wc <- slug_water_cuts()
+    t_end <- t_start + t_window
+    all_data <- list()
+    labels <- paste0("Year ", 1:10, " (", round(wc), "% WC)")
+
+    for (i in 1:10) {
+      d <- extract_slug_case(data_list, sheet_name, i, t_start, t_end)
+      if (!is.null(d)) {
+        d$panel <- labels[i]
+        all_data[[length(all_data) + 1]] <- d
+      }
+    }
+
+    if (length(all_data) == 0) {
+      return(ggplot() + theme_academic(base_size = 12) +
+        annotate("text", x = 0.5, y = 0.5,
+                 label = paste0("No data found in sheet: ", sheet_name),
+                 size = 5, color = "#999", fontface = "italic") +
+        xlim(0, 1) + ylim(0, 1) +
+        theme(axis.title = element_blank(), axis.text = element_blank(),
+              axis.ticks = element_blank(), panel.border = element_blank()))
+    }
+
+    plot_df <- do.call(rbind, all_data)
+    plot_df$panel <- factor(plot_df$panel, levels = labels)
+
+    # Per-panel stats
+    stats_df <- do.call(rbind, lapply(split(plot_df, plot_df$panel), function(pd) {
+      data.frame(
+        panel = pd$panel[1],
+        mean_val = mean(pd$value, na.rm = TRUE),
+        sd_val = sd(pd$value, na.rm = TRUE),
+        min_val = min(pd$value, na.rm = TRUE),
+        max_val = max(pd$value, na.rm = TRUE),
+        pp_amp = max(pd$value, na.rm = TRUE) - min(pd$value, na.rm = TRUE),
+        stringsAsFactors = FALSE
+      )
+    }))
+    stats_df$panel <- factor(stats_df$panel, levels = labels)
+    stats_df$ann_label <- sprintf(
+      "\u0394%s\u209a\u209a: %.2f\n\u03c3: %.3f",
+      var_symbol, stats_df$pp_amp, stats_df$sd_val
+    )
+
+    # Auto-detect best corner per panel
+    corner_results <- do.call(rbind, lapply(levels(plot_df$panel), function(pnl) {
+      pd <- plot_df[plot_df$panel == pnl, ]
+      st <- stats_df[stats_df$panel == pnl, ]
+      t_range <- range(pd$time, na.rm = TRUE)
+      y_range <- range(pd$value, na.rm = TRUE)
+      t_norm <- (pd$time - t_range[1]) / max(diff(t_range), 1e-9)
+      y_norm <- (pd$value - y_range[1]) / max(diff(y_range), 1e-9)
+      corners <- list(
+        top_left = c(0, 1), top_right = c(1, 1),
+        bottom_left = c(0, 0), bottom_right = c(1, 0)
+      )
+      best <- names(which.max(vapply(corners, function(cn) {
+        mean(sqrt((t_norm - cn[1])^2 + (y_norm - cn[2])^2))
+      }, numeric(1))))
+      is_right  <- grepl("right", best)
+      is_bottom <- grepl("bottom", best)
+      data.frame(
+        panel = pnl,
+        ann_x = if (is_right) t_range[2] - diff(t_range) * 0.02 else t_range[1] + diff(t_range) * 0.02,
+        ann_y = if (is_bottom) st$min_val else st$max_val,
+        ann_hjust = if (is_right) 1 else 0,
+        ann_vjust = if (is_bottom) 0 else 1,
+        stringsAsFactors = FALSE
+      )
+    }))
+    corner_results$panel <- factor(corner_results$panel, levels = levels(plot_df$panel))
+    stats_df <- merge(stats_df, corner_results, by = "panel")
+
+    p <- ggplot(plot_df, aes(x = time, y = value)) +
+      geom_line(color = pal[1], linewidth = opts$lw * 0.8) +
+      facet_wrap(~ panel, ncol = 5, scales = "free_y") +
+      geom_hline(data = stats_df, aes(yintercept = mean_val),
+                 linetype = "dashed", color = pal[2], linewidth = 0.3) +
+      geom_label(data = stats_df,
+                 aes(x = ann_x, y = ann_y,
+                     label = ann_label, hjust = ann_hjust, vjust = ann_vjust),
+                 size = 2, color = pal[4 %% length(pal) + 1],
+                 fill = alpha("white", 0.92), label.size = 0.15,
+                 label.padding = unit(2, "pt"), lineheight = 1.1) +
+      theme_academic(base_size = opts$text_size * 0.85, grid = opts$grid,
+                     border = TRUE, ticks_inward = TRUE) +
+      theme(
+        strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.4),
+        strip.text = element_text(size = opts$label_size * 0.7, face = "bold",
+                                   color = "#1a1714", margin = margin(t = 2, b = 2)),
+        panel.spacing = unit(8, "pt"),
+        plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
+                                   margin = margin(b = 6)),
+        axis.title = element_text(size = opts$label_size * 0.9),
+        axis.text = element_text(size = opts$text_size * 0.8)
+      ) +
+      labs(x = "Time (s)", y = y_label, title = title)
+
+    p
+  }
+
+  output$slug_plot_pt1_all <- renderPlot({
+    req(slug_rv$loaded)
+    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    opts <- list(
+      lw = input$slug_line_weight %||% 0.6,
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "y"
+    )
+    build_slug_all_years(slug_rv$slug_data, "PT PIPE 1 Trend",
+      "Pressure (bara)",
+      "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 All Years",
+      input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
+  }, res = 96)
+
+  output$slug_plot_pt7_all <- renderPlot({
+    req(slug_rv$loaded)
+    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    opts <- list(
+      lw = input$slug_line_weight %||% 0.6,
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "y"
+    )
+    build_slug_all_years(slug_rv$slug_data, "PT PIPE 7 Trend",
+      "Pressure (bara)",
+      "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 All Years",
+      input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
+  }, res = 96)
+
+  output$slug_plot_qlt_all <- renderPlot({
+    req(slug_rv$loaded)
+    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    opts <- list(
+      lw = input$slug_line_weight %||% 0.6,
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "y"
+    )
+    build_slug_all_years(slug_rv$slug_data, "QLT PIPE 7 Trend",
+      "Liquid Flow Rate (m\u00b3/d)",
+      "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 All Years",
+      input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
+      var_symbol = "Q")
+  }, res = 96)
+
   # ── Fig 4.12: Slug Frequency ────────────────────────────
   output$slug_plot_freq <- renderPlot({
     req(slug_rv$loaded, slug_rv$slugtrack_data)
@@ -2799,6 +2966,22 @@ server <- function(input, output, session) {
         "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
         slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
         var_symbol = "Q", ann_pos = "auto")
+    } else if (tab == "PT PIPE-1 All Years") {
+      build_slug_all_years(slug_rv$slug_data, "PT PIPE 1 Trend",
+        "Pressure (bara)",
+        "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 All Years",
+        input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
+    } else if (tab == "PT PIPE-7 All Years") {
+      build_slug_all_years(slug_rv$slug_data, "PT PIPE 7 Trend",
+        "Pressure (bara)",
+        "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 All Years",
+        input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
+    } else if (tab == "QLT PIPE-7 All Years") {
+      build_slug_all_years(slug_rv$slug_data, "QLT PIPE 7 Trend",
+        "Liquid Flow Rate (m\u00b3/d)",
+        "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 All Years",
+        input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
+        var_symbol = "Q")
     } else {
       # For the other tabs, return NULL (they use independent renderPlot)
       NULL
@@ -2839,6 +3022,22 @@ server <- function(input, output, session) {
           "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
           slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
           var_symbol = "Q", ann_pos = "auto")
+      } else if (tab == "PT PIPE-1 All Years") {
+        build_slug_all_years(slug_rv$slug_data, "PT PIPE 1 Trend",
+          "Pressure (bara)",
+          "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 All Years",
+          input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
+      } else if (tab == "PT PIPE-7 All Years") {
+        build_slug_all_years(slug_rv$slug_data, "PT PIPE 7 Trend",
+          "Pressure (bara)",
+          "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 All Years",
+          input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
+      } else if (tab == "QLT PIPE-7 All Years") {
+        build_slug_all_years(slug_rv$slug_data, "QLT PIPE 7 Trend",
+          "Liquid Flow Rate (m\u00b3/d)",
+          "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 All Years",
+          input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
+          var_symbol = "Q")
       } else if (tab == "Slug Frequency (Fig 4.12)") {
         # Rebuild frequency plot
         sheet <- slug_rv$slugtrack_data[["NSLUG Trend"]]
