@@ -317,7 +317,7 @@ ui <- page_navbar(
             textInput("chart_title", "Chart title", value = "Pipeline Profile"),
             textInput("chart_subtitle", "Subtitle (optional)", value = ""),
             textInput("xlabel", "X axis label", value = "Pipeline Length [m]"),
-            textInput("ylabel", "Y axis label", value = "Pressure [bara]"),
+            textInput("ylabel", "Y axis label", value = "Pressure (bara)"),
             helpText("Tip: _{...} = subscript, ^{...} = superscript",
                      style = "font-size:0.62rem;color:#999;font-style:italic;"),
             numericInput("title_size", "Title font size", value = 16, min = 8, max = 32, step = 1),
@@ -426,7 +426,7 @@ ui <- page_navbar(
                                       "Minimum" = "min",
                                       "Maximum" = "max",
                                       "Mean" = "mean")),
-              textInput("extract_x_label", "X parameter label", value = "Water Cut [%]"),
+              textInput("extract_x_label", "X parameter label", value = "Water Cut (%)"),
               textInput("extract_y_label", "Y parameter label", value = "Inlet Pressure [bara]"),
               uiOutput("extract_x_inputs"),
               hr(),
@@ -650,7 +650,7 @@ ui <- page_navbar(
               ),
               column(4,
                 selectInput("slug_panel_c", "Panel C", choices = 1:10, selected = 10),
-                textInput("slug_label_c", "Label", value = "Year 10 (96.2% WC)")
+                textInput("slug_label_c", "Label", value = "Year 10 (96% WC)")
               )
             )
           ),
@@ -1169,7 +1169,7 @@ server <- function(input, output, session) {
     rv$extraction_mode <- TRUE
 
     # Update axis labels
-    updateTextInput(session, "xlabel", value = input$extract_x_label %||% "Water Cut [%]")
+    updateTextInput(session, "xlabel", value = input$extract_x_label %||% "Water Cut (%)")
     updateTextInput(session, "ylabel", value = input$extract_y_label %||% "Inlet Pressure [bara]")
     updateTextInput(session, "chart_title", value = paste0(
       switch(method, first = "Inlet", last = "Outlet", min = "Minimum",
@@ -2289,19 +2289,19 @@ server <- function(input, output, session) {
     wc <- slug_water_cuts()
     yr <- as.integer(input$slug_panel_a)
     updateTextInput(session, "slug_label_a",
-                    value = paste0("Year ", yr, " (", wc[yr], "% WC)"))
+                    value = paste0("Year ", yr, " (", round(wc[yr]), "% WC)"))
   })
   observeEvent(input$slug_panel_b, {
     wc <- slug_water_cuts()
     yr <- as.integer(input$slug_panel_b)
     updateTextInput(session, "slug_label_b",
-                    value = paste0("Year ", yr, " (", wc[yr], "% WC)"))
+                    value = paste0("Year ", yr, " (", round(wc[yr]), "% WC)"))
   })
   observeEvent(input$slug_panel_c, {
     wc <- slug_water_cuts()
     yr <- as.integer(input$slug_panel_c)
     updateTextInput(session, "slug_label_c",
-                    value = paste0("Year ", yr, " (", wc[yr], "% WC)"))
+                    value = paste0("Year ", yr, " (", round(wc[yr]), "% WC)"))
   })
 
   # Slug export preset
@@ -2373,7 +2373,7 @@ server <- function(input, output, session) {
         axis.title = element_text(size = opts$label_size),
         axis.text = element_text(size = opts$text_size)
       ) +
-      labs(x = "Time [s]", y = y_label, title = title)
+      labs(x = "Time (s)", y = y_label, title = title)
 
     # Add mean line and annotation per panel
     # Build annotation label with correct variable symbol (P or Q) and subscript pp
@@ -2386,9 +2386,9 @@ server <- function(input, output, session) {
       geom_hline(data = stats_df, aes(yintercept = mean_val),
                  linetype = "dashed", color = pal[2], linewidth = 0.4) +
       geom_label(data = stats_df,
-                 aes(x = t_start + t_window * 0.98, y = max_val,
+                 aes(x = t_start + t_window * 0.02, y = max_val,
                      label = ann_label),
-                 hjust = 1, vjust = 1, size = 2.5, color = pal[4 %% length(pal) + 1],
+                 hjust = 0, vjust = 1, size = 2.5, color = pal[4 %% length(pal) + 1],
                  fill = alpha("white", 0.92), label.size = 0.2,
                  label.padding = unit(3, "pt"), lineheight = 1.2)
 
@@ -2414,7 +2414,7 @@ server <- function(input, output, session) {
     )
     build_slug_timeseries(
       slug_rv$slug_data, "PT PIPE 1 Trend",
-      "Pressure [bara]",
+      "Pressure (bara)",
       "Pressure Oscillations at Pipeline Inlet (PIPE-1)",
       slug_panels(),
       input$slug_t_start %||% 0,
@@ -2436,7 +2436,7 @@ server <- function(input, output, session) {
     )
     build_slug_timeseries(
       slug_rv$slug_data, "PT PIPE 7 Trend",
-      "Pressure [bara]",
+      "Pressure (bara)",
       "Pressure Oscillations at Separator Inlet (PIPE-7)",
       slug_panels(),
       input$slug_t_start %||% 0,
@@ -2458,7 +2458,7 @@ server <- function(input, output, session) {
     )
     build_slug_timeseries(
       slug_rv$slug_data, "QLT PIPE 7 Trend",
-      "Liquid Flow Rate [m\u00b3/d]",
+      "Liquid Flow Rate (m\u00b3/d)",
       "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
       slug_panels(),
       input$slug_t_start %||% 0,
@@ -2527,7 +2527,7 @@ server <- function(input, output, session) {
         axis.title = element_text(size = opts$label_size),
         axis.text = element_text(size = opts$text_size)
       ) +
-      labs(x = "Water Cut [%]", y = "Slug Frequency [slugs/hour]",
+      labs(x = "Water Cut (%)", y = "Slug Frequency (slugs/hour)",
            title = "Slug Frequency Trend Over Field Life") +
       scale_x_continuous(breaks = wc, expand = expansion(mult = 0.08))
 
@@ -2596,7 +2596,7 @@ server <- function(input, output, session) {
         axis.text = element_text(size = opts$text_size),
         axis.text.x = element_text(lineheight = 1.1)
       ) +
-      labs(x = NULL, y = "Slug Body Length [m]",
+      labs(x = NULL, y = "Slug Body Length (m)",
            title = "Slug Body Length Distribution")
 
     p
@@ -2638,13 +2638,13 @@ server <- function(input, output, session) {
     # Left axis: PT amplitudes (bara); Right axis: QLT amplitude (m3/d)
     bar_df <- rbind(
       data.frame(year = amp_data$year, wc = amp_data$wc,
-                 value = amp_data$pt1_amp, metric = "PT PIPE-1 (bara)",
+                 value = amp_data$pt1_amp, metric = "Pressure in PIPE-1 (bara)",
                  stringsAsFactors = FALSE),
       data.frame(year = amp_data$year, wc = amp_data$wc,
-                 value = amp_data$pt7_amp, metric = "PT PIPE-7 (bara)",
+                 value = amp_data$pt7_amp, metric = "Pressure in PIPE-7 (bara)",
                  stringsAsFactors = FALSE),
       data.frame(year = amp_data$year, wc = amp_data$wc,
-                 value = amp_data$qlt_amp, metric = "QLT PIPE-7 (m\u00b3/d)",
+                 value = amp_data$qlt_amp, metric = "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)",
                  stringsAsFactors = FALSE)
     )
     bar_df <- bar_df[!is.na(bar_df$value), ]
@@ -2658,8 +2658,8 @@ server <- function(input, output, session) {
     # Since QLT values are much larger than PT, use faceted layout
     # with free y-scales instead of dual-axis (cleaner for publication)
     bar_df$metric <- factor(bar_df$metric,
-      levels = c("PT PIPE-1 (bara)", "PT PIPE-7 (bara)",
-                 "QLT PIPE-7 (m\u00b3/d)"))
+      levels = c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)",
+                 "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))
     bar_df$year_label <- paste0("Y", bar_df$year)
     bar_df$year_label <- factor(bar_df$year_label, levels = paste0("Y", 1:10))
 
@@ -2668,7 +2668,7 @@ server <- function(input, output, session) {
                color = "black", linewidth = 0.2) +
       facet_wrap(~ metric, ncol = 1, scales = "free_y") +
       scale_fill_manual(values = setNames(pal[1:3],
-        c("PT PIPE-1 (bara)", "PT PIPE-7 (bara)", "QLT PIPE-7 (m\u00b3/d)"))) +
+        c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)", "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))) +
       theme_academic(base_size = opts$text_size, grid = opts$grid,
                      border = TRUE, ticks_inward = TRUE) +
       theme(
@@ -2741,15 +2741,15 @@ server <- function(input, output, session) {
 
     if (tab == "PT PIPE-1 (Fig 4.10)") {
       build_slug_timeseries(slug_rv$slug_data, "PT PIPE 1 Trend",
-        "Pressure [bara]", "Pressure Oscillations at Pipeline Inlet (PIPE-1)",
+        "Pressure (bara)", "Pressure Oscillations at Pipeline Inlet (PIPE-1)",
         slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
     } else if (tab == "PT PIPE-7 (Fig 4.10-B)") {
       build_slug_timeseries(slug_rv$slug_data, "PT PIPE 7 Trend",
-        "Pressure [bara]", "Pressure Oscillations at Separator Inlet (PIPE-7)",
+        "Pressure (bara)", "Pressure Oscillations at Separator Inlet (PIPE-7)",
         slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
     } else if (tab == "QLT PIPE-7 (Fig 4.11)") {
       build_slug_timeseries(slug_rv$slug_data, "QLT PIPE 7 Trend",
-        "Liquid Flow Rate [m\u00b3/d]",
+        "Liquid Flow Rate (m\u00b3/d)",
         "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
         slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
         var_symbol = "Q")
@@ -2779,15 +2779,15 @@ server <- function(input, output, session) {
 
       p <- if (tab == "PT PIPE-1 (Fig 4.10)") {
         build_slug_timeseries(slug_rv$slug_data, "PT PIPE 1 Trend",
-          "Pressure [bara]", "Pressure Oscillations at Pipeline Inlet (PIPE-1)",
+          "Pressure (bara)", "Pressure Oscillations at Pipeline Inlet (PIPE-1)",
           slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
       } else if (tab == "PT PIPE-7 (Fig 4.10-B)") {
         build_slug_timeseries(slug_rv$slug_data, "PT PIPE 7 Trend",
-          "Pressure [bara]", "Pressure Oscillations at Separator Inlet (PIPE-7)",
+          "Pressure (bara)", "Pressure Oscillations at Separator Inlet (PIPE-7)",
           slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
       } else if (tab == "QLT PIPE-7 (Fig 4.11)") {
         build_slug_timeseries(slug_rv$slug_data, "QLT PIPE 7 Trend",
-          "Liquid Flow Rate [m\u00b3/d]",
+          "Liquid Flow Rate (m\u00b3/d)",
           "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
           slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
           var_symbol = "Q")
@@ -2818,7 +2818,7 @@ server <- function(input, output, session) {
           theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
           theme(plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5),
                 axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size)) +
-          labs(x = "Water Cut [%]", y = "Slug Frequency [slugs/hour]",
+          labs(x = "Water Cut (%)", y = "Slug Frequency (slugs/hour)",
                title = "Slug Frequency Trend Over Field Life") +
           scale_x_continuous(breaks = wc, expand = expansion(mult = 0.08))
       } else if (tab == "Slug Length (Fig 4.13)") {
@@ -2848,7 +2848,7 @@ server <- function(input, output, session) {
           theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
           theme(plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5),
                 axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size)) +
-          labs(x = NULL, y = "Slug Body Length [m]", title = "Slug Body Length Distribution")
+          labs(x = NULL, y = "Slug Body Length (m)", title = "Slug Body Length Distribution")
       } else if (tab == "Amplitude Summary (Fig 4.14)") {
         amp_data <- data.frame(year = integer(), wc = numeric(),
                                pt1_amp = numeric(), pt7_amp = numeric(), qlt_amp = numeric())
@@ -2863,18 +2863,18 @@ server <- function(input, output, session) {
             qlt_amp = if (!is.null(qlt_d)) max(qlt_d$value) - min(qlt_d$value) else NA))
         }
         bar_df <- rbind(
-          data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$pt1_amp, metric = "PT PIPE-1 (bara)"),
-          data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$pt7_amp, metric = "PT PIPE-7 (bara)"),
-          data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$qlt_amp, metric = "QLT PIPE-7 (m\u00b3/d)"))
+          data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$pt1_amp, metric = "Pressure in PIPE-1 (bara)"),
+          data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$pt7_amp, metric = "Pressure in PIPE-7 (bara)"),
+          data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$qlt_amp, metric = "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))
         bar_df <- bar_df[!is.na(bar_df$value), ]
         if (nrow(bar_df) == 0) return()
-        bar_df$metric <- factor(bar_df$metric, levels = c("PT PIPE-1 (bara)", "PT PIPE-7 (bara)", "QLT PIPE-7 (m\u00b3/d)"))
+        bar_df$metric <- factor(bar_df$metric, levels = c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)", "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))
         bar_df$year_label <- factor(paste0("Y", bar_df$year), levels = paste0("Y", 1:10))
         ggplot(bar_df, aes(x = year_label, y = value, fill = metric)) +
           geom_col(position = position_dodge(width = 0.8), width = 0.7, color = "black", linewidth = 0.2) +
           facet_wrap(~ metric, ncol = 1, scales = "free_y") +
           scale_fill_manual(values = setNames(pal[1:3],
-            c("PT PIPE-1 (bara)", "PT PIPE-7 (bara)", "QLT PIPE-7 (m\u00b3/d)"))) +
+            c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)", "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))) +
           theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
           theme(strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
                 strip.text = element_text(size = opts$label_size * 0.85, face = "bold"),
