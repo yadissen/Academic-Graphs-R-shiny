@@ -2375,11 +2375,10 @@ server <- function(input, output, session) {
     }))
     stats_df$panel <- factor(stats_df$panel, levels = panels$labels)
 
-    # Assign one color per panel (matching reference profile matrix style)
-    panel_levels <- levels(plot_df$panel)
+    # Assign color by year index so 3-panel colors match the all-years grid
     color_map <- setNames(
-      pal[((seq_along(panel_levels) - 1) %% length(pal)) + 1],
-      panel_levels
+      pal[((panels$cases - 1) %% length(pal)) + 1],
+      panels$labels
     )
 
     p <- ggplot(plot_df, aes(x = time, y = value, color = panel)) +
