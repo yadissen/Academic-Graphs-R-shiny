@@ -2390,7 +2390,7 @@ server <- function(input, output, session) {
                      border = TRUE, ticks_inward = TRUE) +
       theme(
         strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
-        strip.text = element_text(size = opts$text_size, face = "bold",
+        strip.text = element_text(size = opts$label_size - 1, face = "bold",
                                   color = "#1a1714", margin = margin(4, 0, 4, 0)),
         panel.spacing = unit(1, "lines"),
         plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
@@ -2643,7 +2643,7 @@ server <- function(input, output, session) {
                      border = TRUE, ticks_inward = TRUE) +
       theme(
         strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
-        strip.text = element_text(size = opts$text_size, face = "bold",
+        strip.text = element_text(size = opts$label_size - 1, face = "bold",
                                   color = "#1a1714", margin = margin(4, 0, 4, 0)),
         panel.spacing = unit(1, "lines"),
         plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
