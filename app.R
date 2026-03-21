@@ -2446,14 +2446,18 @@ server <- function(input, output, session) {
       stats_df$ann_vjust <- if (grepl("bottom", ann_pos)) 0 else 1
     }
 
+    # Map each panel to its matching palette color for dashed lines and annotations
+    stats_df$line_color <- panel_colors[as.character(stats_df$panel)]
+    stats_df$ann_color  <- panel_colors[as.character(stats_df$panel)]
+
     p <- p +
       geom_hline(data = stats_df, aes(yintercept = mean_val),
-                 linetype = "dashed", color = "#00BFC4", linewidth = 0.4) +
+                 linetype = "dashed", color = stats_df$line_color, linewidth = 0.4) +
       geom_label(data = stats_df,
                  aes(x = ann_x, y = ann_y,
                      label = ann_label, hjust = ann_hjust, vjust = ann_vjust),
                  size = 2.5,
-                 color = "#D32F2F",
+                 color = stats_df$ann_color,
                  fill = alpha("white", 0.92), label.size = 0.2,
                  label.padding = unit(3, "pt"), lineheight = 1.2)
 
@@ -2613,17 +2617,20 @@ server <- function(input, output, session) {
 
     # Color-code each year with a distinct palette color
     year_colors <- setNames(pal[1:length(labels)], labels)
+    # Map each panel to its matching color for dashed lines and annotations
+    stats_df$line_color <- year_colors[as.character(stats_df$panel)]
+    stats_df$ann_color  <- year_colors[as.character(stats_df$panel)]
 
     p <- ggplot(plot_df, aes(x = time, y = value, color = panel)) +
       geom_line(linewidth = opts$lw * 0.8) +
       facet_wrap(~ panel, ncol = 5) +
       scale_color_manual(values = year_colors, guide = "none") +
       geom_hline(data = stats_df, aes(yintercept = mean_val),
-                 linetype = "dashed", color = "#00BFC4", linewidth = 0.3) +
+                 linetype = "dashed", color = stats_df$line_color, linewidth = 0.3) +
       geom_label(data = stats_df,
                  aes(x = ann_x, y = ann_y,
                      label = ann_label, hjust = ann_hjust, vjust = ann_vjust),
-                 size = 2.2, color = "#D32F2F",
+                 size = 2.2, color = stats_df$ann_color,
                  fill = alpha("white", 0.92), label.size = 0.15,
                  label.padding = unit(3, "pt"), lineheight = 1.1) +
       theme_academic(base_size = opts$text_size * 0.85, grid = opts$grid,
