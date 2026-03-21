@@ -2386,17 +2386,15 @@ server <- function(input, output, session) {
       geom_line(linewidth = opts$lw, show.legend = FALSE) +
       facet_wrap(~ panel, ncol = 1, scales = "free_y") +
       scale_color_manual(values = color_map) +
-      theme_academic(base_size = opts$text_size, grid = opts$grid,
+      theme_academic(base_size = opts$label_size, grid = opts$grid,
                      border = TRUE, ticks_inward = TRUE) +
       theme(
         strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
-        strip.text = element_text(size = opts$label_size * 0.9, face = "bold",
-                                   color = "#1a1714", margin = margin(4, 0, 4, 0)),
+        strip.text = element_text(size = opts$text_size, face = "bold",
+                                  color = "#1a1714", margin = margin(4, 0, 4, 0)),
         panel.spacing = unit(1, "lines"),
         plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
-                                   margin = margin(b = 8)),
-        axis.title = element_text(size = opts$label_size),
-        axis.text = element_text(size = opts$text_size)
+                                   margin = margin(b = 8))
       ) +
       labs(x = "Time (s)", y = y_label, title = title)
 
@@ -2641,17 +2639,15 @@ server <- function(input, output, session) {
                  fill = alpha("white", 0.92), label.size = 0.15,
                  label.padding = unit(3, "pt"), lineheight = 1.1,
                  show.legend = FALSE) +
-      theme_academic(base_size = opts$text_size * 0.85, grid = opts$grid,
+      theme_academic(base_size = opts$label_size, grid = opts$grid,
                      border = TRUE, ticks_inward = TRUE) +
       theme(
-        strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.4),
-        strip.text = element_text(size = opts$label_size * 0.7, face = "bold",
-                                   color = "#1a1714", margin = margin(4, 0, 4, 0)),
+        strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
+        strip.text = element_text(size = opts$text_size, face = "bold",
+                                  color = "#1a1714", margin = margin(4, 0, 4, 0)),
         panel.spacing = unit(1, "lines"),
         plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
-                                   margin = margin(b = 6)),
-        axis.title = element_text(size = opts$label_size * 0.9),
-        axis.text = element_text(size = opts$text_size * 0.8)
+                                   margin = margin(b = 10))
       ) +
       labs(x = "Time (s)", y = y_label, title = title)
 
