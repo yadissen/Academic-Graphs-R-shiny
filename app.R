@@ -689,14 +689,14 @@ ui <- page_navbar(
 
           accordion_panel("Appearance", icon = icon("palette"),
             selectInput("slug_palette", "Colour palette",
-                        choices = names(PALETTES), selected = "Classic Academic"),
+                        choices = names(PALETTES), selected = "Nature"),
             numericInput("slug_title_size", "Title font size", value = 14, min = 8, max = 28),
             numericInput("slug_label_size", "Axis label size", value = 11, min = 8, max = 24),
             numericInput("slug_text_size", "Tick label size", value = 9, min = 6, max = 20),
             sliderInput("slug_line_weight", "Line weight", min = 0.3, max = 2, value = 0.6, step = 0.1),
             selectInput("slug_grid", "Grid lines",
                         choices = c("None" = "none", "Major" = "major", "Y only" = "y"),
-                        selected = "y")
+                        selected = "none")
           ),
 
           accordion_panel("Export", icon = icon("download"),
@@ -755,6 +755,10 @@ ui <- page_navbar(
 
         nav_panel("QLT PIPE-7 All Years",
           plotOutput("slug_plot_qlt_all", height = "900px")
+        ),
+
+        nav_panel("Slug Length All Years",
+          plotOutput("slug_plot_length_all", height = "900px")
         ),
 
         nav_panel("Metrics Table",
@@ -2460,13 +2464,13 @@ server <- function(input, output, session) {
   # ── Fig 4.10: PT PIPE 1 ────────────────────────────────
   output$slug_plot_pt1 <- renderPlot({
     req(slug_rv$loaded)
-    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
     opts <- list(
       lw = input$slug_line_weight %||% 0.6,
       title_size = input$slug_title_size %||% 14,
       label_size = input$slug_label_size %||% 11,
       text_size = input$slug_text_size %||% 9,
-      grid = input$slug_grid %||% "y"
+      grid = input$slug_grid %||% "none"
     )
     build_slug_timeseries(
       slug_rv$slug_data, "PT PIPE 1 Trend",
@@ -2482,13 +2486,13 @@ server <- function(input, output, session) {
   # ── Fig 4.10-B: PT PIPE 7 ──────────────────────────────
   output$slug_plot_pt7 <- renderPlot({
     req(slug_rv$loaded)
-    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
     opts <- list(
       lw = input$slug_line_weight %||% 0.6,
       title_size = input$slug_title_size %||% 14,
       label_size = input$slug_label_size %||% 11,
       text_size = input$slug_text_size %||% 9,
-      grid = input$slug_grid %||% "y"
+      grid = input$slug_grid %||% "none"
     )
     build_slug_timeseries(
       slug_rv$slug_data, "PT PIPE 7 Trend",
@@ -2504,13 +2508,13 @@ server <- function(input, output, session) {
   # ── Fig 4.11: QLT PIPE 7 ───────────────────────────────
   output$slug_plot_qlt <- renderPlot({
     req(slug_rv$loaded)
-    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
     opts <- list(
       lw = input$slug_line_weight %||% 0.6,
       title_size = input$slug_title_size %||% 14,
       label_size = input$slug_label_size %||% 11,
       text_size = input$slug_text_size %||% 9,
-      grid = input$slug_grid %||% "y"
+      grid = input$slug_grid %||% "none"
     )
     build_slug_timeseries(
       slug_rv$slug_data, "QLT PIPE 7 Trend",
@@ -2631,13 +2635,13 @@ server <- function(input, output, session) {
 
   output$slug_plot_pt1_all <- renderPlot({
     req(slug_rv$loaded)
-    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
     opts <- list(
       lw = input$slug_line_weight %||% 0.6,
       title_size = input$slug_title_size %||% 14,
       label_size = input$slug_label_size %||% 11,
       text_size = input$slug_text_size %||% 9,
-      grid = input$slug_grid %||% "y"
+      grid = input$slug_grid %||% "none"
     )
     build_slug_all_years(slug_rv$slug_data, "PT PIPE 1 Trend",
       "Pressure (bara)",
@@ -2647,13 +2651,13 @@ server <- function(input, output, session) {
 
   output$slug_plot_pt7_all <- renderPlot({
     req(slug_rv$loaded)
-    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
     opts <- list(
       lw = input$slug_line_weight %||% 0.6,
       title_size = input$slug_title_size %||% 14,
       label_size = input$slug_label_size %||% 11,
       text_size = input$slug_text_size %||% 9,
-      grid = input$slug_grid %||% "y"
+      grid = input$slug_grid %||% "none"
     )
     build_slug_all_years(slug_rv$slug_data, "PT PIPE 7 Trend",
       "Pressure (bara)",
@@ -2663,13 +2667,13 @@ server <- function(input, output, session) {
 
   output$slug_plot_qlt_all <- renderPlot({
     req(slug_rv$loaded)
-    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
     opts <- list(
       lw = input$slug_line_weight %||% 0.6,
       title_size = input$slug_title_size %||% 14,
       label_size = input$slug_label_size %||% 11,
       text_size = input$slug_text_size %||% 9,
-      grid = input$slug_grid %||% "y"
+      grid = input$slug_grid %||% "none"
     )
     build_slug_all_years(slug_rv$slug_data, "QLT PIPE 7 Trend",
       "Liquid Flow Rate (m\u00b3/d)",
@@ -2678,15 +2682,78 @@ server <- function(input, output, session) {
       var_symbol = "Q")
   }, res = 96)
 
-  # ── Fig 4.12: Slug Frequency ────────────────────────────
-  output$slug_plot_freq <- renderPlot({
+  # ── Appendix: Slug Length All Years ─────────────────────
+  output$slug_plot_length_all <- renderPlot({
     req(slug_rv$loaded, slug_rv$slugtrack_data)
-    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
     opts <- list(
       title_size = input$slug_title_size %||% 14,
       label_size = input$slug_label_size %||% 11,
       text_size = input$slug_text_size %||% 9,
-      grid = input$slug_grid %||% "y"
+      grid = input$slug_grid %||% "none"
+    )
+    wc <- slug_water_cuts()
+
+    sheet <- slug_rv$slugtrack_data[["LSLEXP PIPE 6 Trend"]]
+    if (is.null(sheet)) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+        label = "LSLEXP PIPE 6 Trend sheet not found", size = 5, color = "#999") +
+        xlim(0, 1) + ylim(0, 1) + theme_void())
+    }
+
+    all_data <- list()
+    for (yr in 1:10) {
+      y_col <- (yr - 1) * 2 + 2
+      if (y_col > ncol(sheet)) next
+      v <- suppressWarnings(as.numeric(sheet[[y_col]]))
+      v <- v[!is.na(v) & v > 0]
+      if (length(v) == 0) next
+      all_data[[length(all_data) + 1]] <- data.frame(
+        year_label = paste0("Year ", yr, " (", round(wc[yr]), "% WC)"),
+        year = yr, length = v, stringsAsFactors = FALSE
+      )
+    }
+
+    if (length(all_data) == 0) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+        label = "No slug length data available", size = 5, color = "#999") +
+        xlim(0, 1) + ylim(0, 1) + theme_void())
+    }
+
+    plot_df <- do.call(rbind, all_data)
+    plot_df$year_label <- factor(plot_df$year_label,
+      levels = paste0("Year ", 1:10, " (", round(wc), "% WC)"))
+
+    p <- ggplot(plot_df, aes(x = year_label, y = length)) +
+      geom_violin(fill = alpha(pal[1], 0.15), color = pal[1], linewidth = 0.4) +
+      geom_boxplot(width = 0.15, fill = alpha(pal[2], 0.3), color = pal[2],
+                   outlier.size = 0.8, outlier.alpha = 0.4) +
+      stat_summary(fun = mean, geom = "point", shape = 23, size = 2.5,
+                   fill = pal[3], color = "black", stroke = 0.4) +
+      theme_academic(base_size = opts$text_size, grid = opts$grid,
+                     border = TRUE, ticks_inward = TRUE) +
+      theme(
+        plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
+                                   margin = margin(b = 8)),
+        axis.title = element_text(size = opts$label_size),
+        axis.text = element_text(size = opts$text_size),
+        axis.text.x = element_text(angle = 45, hjust = 1, lineheight = 1.1)
+      ) +
+      labs(x = NULL, y = "Slug Body Length (m)",
+           title = "Slug Body Length Distribution \u2014 All Years")
+
+    p
+  }, res = 96)
+
+  # ── Fig 4.12: Slug Frequency ────────────────────────────
+  output$slug_plot_freq <- renderPlot({
+    req(slug_rv$loaded, slug_rv$slugtrack_data)
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
+    opts <- list(
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "none"
     )
     wc <- slug_water_cuts()
 
@@ -2748,12 +2815,12 @@ server <- function(input, output, session) {
   # ── Fig 4.13: Slug Body Length ──────────────────────────
   output$slug_plot_length <- renderPlot({
     req(slug_rv$loaded, slug_rv$slugtrack_data)
-    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
     opts <- list(
       title_size = input$slug_title_size %||% 14,
       label_size = input$slug_label_size %||% 11,
       text_size = input$slug_text_size %||% 9,
-      grid = input$slug_grid %||% "y"
+      grid = input$slug_grid %||% "none"
     )
     wc <- slug_water_cuts()
 
@@ -2816,12 +2883,12 @@ server <- function(input, output, session) {
   # ── Fig 4.14: Oscillation Amplitude Summary ─────────────
   output$slug_plot_amplitude <- renderPlot({
     req(slug_rv$loaded)
-    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
     opts <- list(
       title_size = input$slug_title_size %||% 14,
       label_size = input$slug_label_size %||% 11,
       text_size = input$slug_text_size %||% 9,
-      grid = input$slug_grid %||% "y"
+      grid = input$slug_grid %||% "none"
     )
     wc <- slug_water_cuts()
 
@@ -2941,13 +3008,13 @@ server <- function(input, output, session) {
   build_slug_active_plot <- reactive({
     req(slug_rv$loaded)
     tab <- input$slug_subtab
-    pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
     opts <- list(
       lw = input$slug_line_weight %||% 0.6,
       title_size = input$slug_title_size %||% 14,
       label_size = input$slug_label_size %||% 11,
       text_size = input$slug_text_size %||% 9,
-      grid = input$slug_grid %||% "y"
+      grid = input$slug_grid %||% "none"
     )
 
     if (tab == "PT PIPE-1 (Fig 4.10)") {
@@ -2983,7 +3050,6 @@ server <- function(input, output, session) {
         input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
         var_symbol = "Q")
     } else {
-      # For the other tabs, return NULL (they use independent renderPlot)
       NULL
     }
   })
@@ -2996,13 +3062,13 @@ server <- function(input, output, session) {
     content = function(file) {
       # Re-render the active tab's plot
       tab <- input$slug_subtab
-      pal <- PALETTES[[input$slug_palette %||% "Classic Academic"]]
+      pal <- PALETTES[[input$slug_palette %||% "Nature"]]
       opts <- list(
         lw = input$slug_line_weight %||% 0.6,
         title_size = input$slug_title_size %||% 14,
         label_size = input$slug_label_size %||% 11,
         text_size = input$slug_text_size %||% 9,
-        grid = input$slug_grid %||% "y"
+        grid = input$slug_grid %||% "none"
       )
       wc <- slug_water_cuts()
 
@@ -3038,6 +3104,37 @@ server <- function(input, output, session) {
           "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 All Years",
           input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
           var_symbol = "Q")
+      } else if (tab == "Slug Length All Years") {
+        # Rebuild slug length all-years plot inline
+        sheet <- slug_rv$slugtrack_data[["LSLEXP PIPE 6 Trend"]]
+        if (is.null(sheet)) return()
+        all_data <- list()
+        for (yr in 1:10) {
+          y_col <- (yr - 1) * 2 + 2
+          if (y_col > ncol(sheet)) next
+          v <- suppressWarnings(as.numeric(sheet[[y_col]]))
+          v <- v[!is.na(v) & v > 0]
+          if (length(v) == 0) next
+          all_data[[length(all_data) + 1]] <- data.frame(
+            year_label = paste0("Year ", yr, " (", round(wc[yr]), "% WC)"),
+            year = yr, length = v)
+        }
+        if (length(all_data) == 0) return()
+        plot_df <- do.call(rbind, all_data)
+        plot_df$year_label <- factor(plot_df$year_label,
+          levels = paste0("Year ", 1:10, " (", round(wc), "% WC)"))
+        ggplot(plot_df, aes(x = year_label, y = length)) +
+          geom_violin(fill = alpha(pal[1], 0.15), color = pal[1], linewidth = 0.4) +
+          geom_boxplot(width = 0.15, fill = alpha(pal[2], 0.3), color = pal[2],
+                       outlier.size = 0.8, outlier.alpha = 0.4) +
+          stat_summary(fun = mean, geom = "point", shape = 23, size = 2.5,
+                       fill = pal[3], color = "black", stroke = 0.4) +
+          theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
+          theme(plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5),
+                axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size),
+                axis.text.x = element_text(angle = 45, hjust = 1, lineheight = 1.1)) +
+          labs(x = NULL, y = "Slug Body Length (m)",
+               title = "Slug Body Length Distribution \u2014 All Years")
       } else if (tab == "Slug Frequency (Fig 4.12)") {
         # Rebuild frequency plot
         sheet <- slug_rv$slugtrack_data[["NSLUG Trend"]]
