@@ -2965,10 +2965,12 @@ server <- function(input, output, session) {
       ) +
       labs(x = NULL, y = "Slug Body Length (m)", title = "Box Plot")
 
-    p_kde <- ggplot(plot_df, aes(x = length, color = kde_label, fill = kde_label)) +
-      geom_density(alpha = 0.15, linewidth = 0.6) +
-      scale_color_manual(values = rep_len(pal, length(levels(plot_df$kde_label)))) +
-      scale_fill_manual(values = rep_len(pal, length(levels(plot_df$kde_label)))) +
+    # Map each selected year to its corresponding palette position
+    kde_year_colors <- setNames(pal[sel_years], levels(plot_df$kde_label))
+
+    p_kde <- ggplot(plot_df, aes(x = length, color = kde_label)) +
+      geom_density(fill = NA, linewidth = 0.6) +
+      scale_color_manual(values = kde_year_colors) +
       common_theme +
       theme(
         plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
@@ -3290,16 +3292,34 @@ server <- function(input, output, session) {
         plot_df <- do.call(rbind, all_data)
         plot_df$year_label <- factor(plot_df$year_label,
           levels = paste0("Year ", sel_years, "\n(", wc[sel_years], "% WC)"))
-        ggplot(plot_df, aes(x = year_label, y = length)) +
-          geom_violin(fill = alpha(pal[1], 0.15), color = pal[1], linewidth = 0.4) +
-          geom_boxplot(width = 0.15, fill = alpha(pal[2], 0.3), color = pal[2],
+        plot_df$kde_label <- factor(
+          paste0("Year ", plot_df$year, " (", wc[plot_df$year], "% WC)"),
+          levels = paste0("Year ", sel_years, " (", wc[sel_years], "% WC)"))
+        common_theme <- theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE)
+        kde_year_colors <- setNames(pal[sel_years], levels(plot_df$kde_label))
+        p_box <- ggplot(plot_df, aes(x = year_label, y = length)) +
+          geom_boxplot(fill = alpha(pal[1], 0.3), color = pal[1],
                        outlier.size = 1, outlier.alpha = 0.5) +
           stat_summary(fun = mean, geom = "point", shape = 23, size = 3,
                        fill = pal[3], color = "black", stroke = 0.5) +
-          theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
+          common_theme +
           theme(plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5),
-                axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size)) +
-          labs(x = NULL, y = "Slug Body Length (m)", title = "Slug Body Length Distribution")
+                axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size),
+                axis.text.x = element_text(lineheight = 1.1)) +
+          labs(x = NULL, y = "Slug Body Length (m)", title = "Box Plot")
+        p_kde <- ggplot(plot_df, aes(x = length, color = kde_label)) +
+          geom_density(fill = NA, linewidth = 0.6) +
+          scale_color_manual(values = kde_year_colors) +
+          common_theme +
+          theme(plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5),
+                axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size),
+                legend.title = element_blank(), legend.position = "bottom",
+                legend.text = element_text(size = opts$text_size - 1)) +
+          labs(x = "Slug Body Length (m)", y = "Density", title = "Kernel Density Estimate")
+        p_box + p_kde +
+          plot_annotation(title = "Slug Body Length Distribution",
+                          theme = theme(plot.title = element_text(
+                            size = opts$title_size + 2, face = "bold", hjust = 0.5)))
       } else if (tab == "Amplitude Summary (Fig 4.14)") {
         amp_data <- data.frame(year = integer(), wc = numeric(),
                                pt1_amp = numeric(), pt7_amp = numeric(), qlt_amp = numeric())
