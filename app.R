@@ -758,6 +758,22 @@ ui <- page_navbar(
           plotOutput("slug_plot_amplitude", height = "550px")
         ),
 
+        nav_panel("ST PT PIPE-1 All Years",
+          plotOutput("slug_plot_st_pt1_all", height = "900px")
+        ),
+
+        nav_panel("ST PT PIPE-7 All Years",
+          plotOutput("slug_plot_st_pt7_all", height = "900px")
+        ),
+
+        nav_panel("ST QLT PIPE-7 All Years",
+          plotOutput("slug_plot_st_qlt_all", height = "900px")
+        ),
+
+        nav_panel("ST Amplitude Summary",
+          plotOutput("slug_plot_st_amplitude", height = "550px")
+        ),
+
         nav_panel("PT PIPE-1 All Years",
           plotOutput("slug_plot_pt1_all", height = "900px")
         ),
@@ -2782,6 +2798,131 @@ server <- function(input, output, session) {
       var_symbol = "Q")
   }, res = 96)
 
+  # ── Slugtracking: All Years ──────────────────────────────
+  output$slug_plot_st_pt1_all <- renderPlot({
+    req(slug_rv$loaded, slug_rv$slugtrack_data)
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
+    opts <- list(
+      lw = input$slug_line_weight %||% 0.6,
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "none"
+    )
+    build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 1 Trend",
+      "Pressure (bara)",
+      "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 Slug Tracking All Years",
+      input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+  }, res = 96)
+
+  output$slug_plot_st_pt7_all <- renderPlot({
+    req(slug_rv$loaded, slug_rv$slugtrack_data)
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
+    opts <- list(
+      lw = input$slug_line_weight %||% 0.6,
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "none"
+    )
+    build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 7 Trend",
+      "Pressure (bara)",
+      "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
+      input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+  }, res = 96)
+
+  output$slug_plot_st_qlt_all <- renderPlot({
+    req(slug_rv$loaded, slug_rv$slugtrack_data)
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
+    opts <- list(
+      lw = input$slug_line_weight %||% 0.6,
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "none"
+    )
+    build_slug_all_years(slug_rv$slugtrack_data, "QLT PIPE 7 Trend",
+      "Liquid Flow Rate (m\u00b3/d)",
+      "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
+      input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+      var_symbol = "Q")
+  }, res = 96)
+
+  # ── Slugtracking: Oscillation Amplitude Summary ──────────
+  output$slug_plot_st_amplitude <- renderPlot({
+    req(slug_rv$loaded, slug_rv$slugtrack_data)
+    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
+    opts <- list(
+      title_size = input$slug_title_size %||% 14,
+      label_size = input$slug_label_size %||% 11,
+      text_size = input$slug_text_size %||% 9,
+      grid = input$slug_grid %||% "none"
+    )
+    wc <- slug_water_cuts()
+
+    amp_data <- data.frame(year = integer(), wc = numeric(),
+                           pt1_amp = numeric(), pt7_amp = numeric(), qlt_amp = numeric())
+
+    for (i in 1:10) {
+      pt1_d <- extract_slug_case(slug_rv$slugtrack_data, "PT PIPE 1 Trend", i, 0, 7200)
+      pt7_d <- extract_slug_case(slug_rv$slugtrack_data, "PT PIPE 7 Trend", i, 0, 7200)
+      qlt_d <- extract_slug_case(slug_rv$slugtrack_data, "QLT PIPE 7 Trend", i, 0, 7200)
+
+      amp_data <- rbind(amp_data, data.frame(
+        year = i, wc = wc[i],
+        pt1_amp = if (!is.null(pt1_d)) max(pt1_d$value) - min(pt1_d$value) else NA,
+        pt7_amp = if (!is.null(pt7_d)) max(pt7_d$value) - min(pt7_d$value) else NA,
+        qlt_amp = if (!is.null(qlt_d)) max(qlt_d$value) - min(qlt_d$value) else NA
+      ))
+    }
+
+    bar_df <- rbind(
+      data.frame(year = amp_data$year, wc = amp_data$wc,
+                 value = amp_data$pt1_amp, metric = "Pressure in PIPE-1 (bara)",
+                 stringsAsFactors = FALSE),
+      data.frame(year = amp_data$year, wc = amp_data$wc,
+                 value = amp_data$pt7_amp, metric = "Pressure in PIPE-7 (bara)",
+                 stringsAsFactors = FALSE),
+      data.frame(year = amp_data$year, wc = amp_data$wc,
+                 value = amp_data$qlt_amp, metric = "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)",
+                 stringsAsFactors = FALSE)
+    )
+    bar_df <- bar_df[!is.na(bar_df$value), ]
+
+    if (nrow(bar_df) == 0) {
+      return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+        label = "No amplitude data available", size = 5, color = "#999") +
+        xlim(0, 1) + ylim(0, 1) + theme_void())
+    }
+
+    bar_df$metric <- factor(bar_df$metric,
+      levels = c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)",
+                 "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))
+    bar_df$year_label <- factor(paste0("Y", bar_df$year), levels = paste0("Y", 1:10))
+
+    ggplot(bar_df, aes(x = year_label, y = value, fill = metric)) +
+      geom_col(position = position_dodge(width = 0.8), width = 0.7,
+               color = "black", linewidth = 0.2) +
+      facet_wrap(~ metric, ncol = 1, scales = "free_y") +
+      scale_fill_manual(values = setNames(pal[1:3],
+        c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)", "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))) +
+      theme_academic(base_size = opts$text_size, grid = opts$grid,
+                     border = TRUE, ticks_inward = TRUE) +
+      theme(
+        strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
+        strip.text = element_text(size = opts$label_size * 0.85, face = "bold",
+                                   color = "#1a1714", margin = margin(t = 3, b = 3)),
+        panel.spacing = unit(12, "pt"),
+        plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
+                                   margin = margin(b = 8)),
+        axis.title = element_text(size = opts$label_size),
+        axis.text = element_text(size = opts$text_size),
+        legend.position = "none"
+      ) +
+      labs(x = "Production Year", y = "Peak-to-Peak Amplitude",
+           title = "Oscillation Amplitude Summary \u2014 Slug Tracking")
+  }, res = 96)
+
   # ── Appendix: Slug Length Box Plot All Years ─────────────
   output$slug_plot_length_all_box <- renderPlot({
     req(slug_rv$loaded, slug_rv$slugtrack_data)
@@ -3243,6 +3384,57 @@ server <- function(input, output, session) {
         "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 Slug Tracking",
         slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
         var_symbol = "Q", ann_pos = "auto")
+    } else if (tab == "ST PT PIPE-1 All Years") {
+      build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 1 Trend",
+        "Pressure (bara)",
+        "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 Slug Tracking All Years",
+        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+    } else if (tab == "ST PT PIPE-7 All Years") {
+      build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 7 Trend",
+        "Pressure (bara)",
+        "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
+        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+    } else if (tab == "ST QLT PIPE-7 All Years") {
+      build_slug_all_years(slug_rv$slugtrack_data, "QLT PIPE 7 Trend",
+        "Liquid Flow Rate (m\u00b3/d)",
+        "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
+        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+        var_symbol = "Q")
+    } else if (tab == "ST Amplitude Summary") {
+      wc <- slug_water_cuts()
+      amp_data <- data.frame(year = integer(), wc = numeric(),
+                             pt1_amp = numeric(), pt7_amp = numeric(), qlt_amp = numeric())
+      for (i in 1:10) {
+        pt1_d <- extract_slug_case(slug_rv$slugtrack_data, "PT PIPE 1 Trend", i, 0, 7200)
+        pt7_d <- extract_slug_case(slug_rv$slugtrack_data, "PT PIPE 7 Trend", i, 0, 7200)
+        qlt_d <- extract_slug_case(slug_rv$slugtrack_data, "QLT PIPE 7 Trend", i, 0, 7200)
+        amp_data <- rbind(amp_data, data.frame(year = i, wc = wc[i],
+          pt1_amp = if (!is.null(pt1_d)) max(pt1_d$value) - min(pt1_d$value) else NA,
+          pt7_amp = if (!is.null(pt7_d)) max(pt7_d$value) - min(pt7_d$value) else NA,
+          qlt_amp = if (!is.null(qlt_d)) max(qlt_d$value) - min(qlt_d$value) else NA))
+      }
+      bar_df <- rbind(
+        data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$pt1_amp, metric = "Pressure in PIPE-1 (bara)", stringsAsFactors = FALSE),
+        data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$pt7_amp, metric = "Pressure in PIPE-7 (bara)", stringsAsFactors = FALSE),
+        data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$qlt_amp, metric = "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)", stringsAsFactors = FALSE))
+      bar_df <- bar_df[!is.na(bar_df$value), ]
+      if (nrow(bar_df) == 0) return(NULL)
+      bar_df$metric <- factor(bar_df$metric, levels = c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)", "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))
+      bar_df$year_label <- factor(paste0("Y", bar_df$year), levels = paste0("Y", 1:10))
+      ggplot(bar_df, aes(x = year_label, y = value, fill = metric)) +
+        geom_col(position = position_dodge(width = 0.8), width = 0.7, color = "black", linewidth = 0.2) +
+        facet_wrap(~ metric, ncol = 1, scales = "free_y") +
+        scale_fill_manual(values = setNames(pal[1:3],
+          c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)", "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))) +
+        theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
+        theme(strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
+              strip.text = element_text(size = opts$label_size * 0.85, face = "bold", color = "#1a1714", margin = margin(t = 3, b = 3)),
+              panel.spacing = unit(12, "pt"),
+              plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5, margin = margin(b = 8)),
+              axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size),
+              legend.position = "none") +
+        labs(x = "Production Year", y = "Peak-to-Peak Amplitude",
+             title = "Oscillation Amplitude Summary \u2014 Slug Tracking")
     } else if (tab == "PT PIPE-1 All Years") {
       build_slug_all_years(slug_rv$slug_data, "PT PIPE 1 Trend",
         "Pressure (bara)",
@@ -3259,6 +3451,57 @@ server <- function(input, output, session) {
         "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 All Years",
         input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
         var_symbol = "Q")
+    } else if (tab == "ST PT PIPE-1 All Years") {
+      build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 1 Trend",
+        "Pressure (bara)",
+        "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 Slug Tracking All Years",
+        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+    } else if (tab == "ST PT PIPE-7 All Years") {
+      build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 7 Trend",
+        "Pressure (bara)",
+        "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
+        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+    } else if (tab == "ST QLT PIPE-7 All Years") {
+      build_slug_all_years(slug_rv$slugtrack_data, "QLT PIPE 7 Trend",
+        "Liquid Flow Rate (m\u00b3/d)",
+        "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
+        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+        var_symbol = "Q")
+    } else if (tab == "ST Amplitude Summary") {
+      wc <- slug_water_cuts()
+      amp_data <- data.frame(year = integer(), wc = numeric(),
+                             pt1_amp = numeric(), pt7_amp = numeric(), qlt_amp = numeric())
+      for (i in 1:10) {
+        pt1_d <- extract_slug_case(slug_rv$slugtrack_data, "PT PIPE 1 Trend", i, 0, 7200)
+        pt7_d <- extract_slug_case(slug_rv$slugtrack_data, "PT PIPE 7 Trend", i, 0, 7200)
+        qlt_d <- extract_slug_case(slug_rv$slugtrack_data, "QLT PIPE 7 Trend", i, 0, 7200)
+        amp_data <- rbind(amp_data, data.frame(year = i, wc = wc[i],
+          pt1_amp = if (!is.null(pt1_d)) max(pt1_d$value) - min(pt1_d$value) else NA,
+          pt7_amp = if (!is.null(pt7_d)) max(pt7_d$value) - min(pt7_d$value) else NA,
+          qlt_amp = if (!is.null(qlt_d)) max(qlt_d$value) - min(qlt_d$value) else NA))
+      }
+      bar_df <- rbind(
+        data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$pt1_amp, metric = "Pressure in PIPE-1 (bara)", stringsAsFactors = FALSE),
+        data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$pt7_amp, metric = "Pressure in PIPE-7 (bara)", stringsAsFactors = FALSE),
+        data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$qlt_amp, metric = "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)", stringsAsFactors = FALSE))
+      bar_df <- bar_df[!is.na(bar_df$value), ]
+      if (nrow(bar_df) == 0) return(NULL)
+      bar_df$metric <- factor(bar_df$metric, levels = c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)", "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))
+      bar_df$year_label <- factor(paste0("Y", bar_df$year), levels = paste0("Y", 1:10))
+      ggplot(bar_df, aes(x = year_label, y = value, fill = metric)) +
+        geom_col(position = position_dodge(width = 0.8), width = 0.7, color = "black", linewidth = 0.2) +
+        facet_wrap(~ metric, ncol = 1, scales = "free_y") +
+        scale_fill_manual(values = setNames(pal[1:3],
+          c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)", "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))) +
+        theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
+        theme(strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
+              strip.text = element_text(size = opts$label_size * 0.85, face = "bold", color = "#1a1714", margin = margin(t = 3, b = 3)),
+              panel.spacing = unit(12, "pt"),
+              plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5, margin = margin(b = 8)),
+              axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size),
+              legend.position = "none") +
+        labs(x = "Production Year", y = "Peak-to-Peak Amplitude",
+             title = "Oscillation Amplitude Summary \u2014 Slug Tracking")
     } else {
       NULL
     }
@@ -3316,6 +3559,57 @@ server <- function(input, output, session) {
           "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 Slug Tracking",
           slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
           var_symbol = "Q", ann_pos = "auto")
+      } else if (tab == "ST PT PIPE-1 All Years") {
+        build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 1 Trend",
+          "Pressure (bara)",
+          "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 Slug Tracking All Years",
+          input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+      } else if (tab == "ST PT PIPE-7 All Years") {
+        build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 7 Trend",
+          "Pressure (bara)",
+          "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
+          input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+      } else if (tab == "ST QLT PIPE-7 All Years") {
+        build_slug_all_years(slug_rv$slugtrack_data, "QLT PIPE 7 Trend",
+          "Liquid Flow Rate (m\u00b3/d)",
+          "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
+          input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+          var_symbol = "Q")
+      } else if (tab == "ST Amplitude Summary") {
+        amp_data <- data.frame(year = integer(), wc = numeric(),
+                               pt1_amp = numeric(), pt7_amp = numeric(), qlt_amp = numeric())
+        for (i in 1:10) {
+          pt1_d <- extract_slug_case(slug_rv$slugtrack_data, "PT PIPE 1 Trend", i, 0, 7200)
+          pt7_d <- extract_slug_case(slug_rv$slugtrack_data, "PT PIPE 7 Trend", i, 0, 7200)
+          qlt_d <- extract_slug_case(slug_rv$slugtrack_data, "QLT PIPE 7 Trend", i, 0, 7200)
+          amp_data <- rbind(amp_data, data.frame(
+            year = i, wc = wc[i],
+            pt1_amp = if (!is.null(pt1_d)) max(pt1_d$value) - min(pt1_d$value) else NA,
+            pt7_amp = if (!is.null(pt7_d)) max(pt7_d$value) - min(pt7_d$value) else NA,
+            qlt_amp = if (!is.null(qlt_d)) max(qlt_d$value) - min(qlt_d$value) else NA))
+        }
+        bar_df <- rbind(
+          data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$pt1_amp, metric = "Pressure in PIPE-1 (bara)", stringsAsFactors = FALSE),
+          data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$pt7_amp, metric = "Pressure in PIPE-7 (bara)", stringsAsFactors = FALSE),
+          data.frame(year = amp_data$year, wc = amp_data$wc, value = amp_data$qlt_amp, metric = "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)", stringsAsFactors = FALSE))
+        bar_df <- bar_df[!is.na(bar_df$value), ]
+        if (nrow(bar_df) == 0) return()
+        bar_df$metric <- factor(bar_df$metric, levels = c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)", "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))
+        bar_df$year_label <- factor(paste0("Y", bar_df$year), levels = paste0("Y", 1:10))
+        ggplot(bar_df, aes(x = year_label, y = value, fill = metric)) +
+          geom_col(position = position_dodge(width = 0.8), width = 0.7, color = "black", linewidth = 0.2) +
+          facet_wrap(~ metric, ncol = 1, scales = "free_y") +
+          scale_fill_manual(values = setNames(pal[1:3],
+            c("Pressure in PIPE-1 (bara)", "Pressure in PIPE-7 (bara)", "Total Liquid Flowrate in PIPE-7 (m\u00b3/d)"))) +
+          theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
+          theme(strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
+                strip.text = element_text(size = opts$label_size * 0.85, face = "bold", color = "#1a1714", margin = margin(t = 3, b = 3)),
+                panel.spacing = unit(12, "pt"),
+                plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5, margin = margin(b = 8)),
+                axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size),
+                legend.position = "none") +
+          labs(x = "Production Year", y = "Peak-to-Peak Amplitude",
+               title = "Oscillation Amplitude Summary \u2014 Slug Tracking")
       } else if (tab == "PT PIPE-1 All Years") {
         build_slug_all_years(slug_rv$slug_data, "PT PIPE 1 Trend",
           "Pressure (bara)",
