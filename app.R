@@ -13,6 +13,7 @@ library(plotly)
 library(colourpicker)
 library(scales)
 library(splines)
+library(patchwork)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  CONSTANTS & PALETTES
@@ -737,12 +738,8 @@ ui <- page_navbar(
           plotOutput("slug_plot_freq", height = "550px")
         ),
 
-        nav_panel("Slug Length Box Plot (Fig 4.13)",
-          plotOutput("slug_plot_length_box", height = "550px")
-        ),
-
-        nav_panel("Slug Length KDE (Fig 4.13)",
-          plotOutput("slug_plot_length_kde", height = "550px")
+        nav_panel("Slug Length (Fig 4.13)",
+          plotOutput("slug_plot_length", height = "550px")
         ),
 
         nav_panel("Amplitude Summary (Fig 4.14)",
@@ -2899,8 +2896,8 @@ server <- function(input, output, session) {
     p
   }, res = 96)
 
-  # ── Fig 4.13: Slug Body Length (Box Plot) ──────────────
-  output$slug_plot_length_box <- renderPlot({
+  # ── Fig 4.13: Slug Body Length (Box Plot + KDE side by side) ──
+  output$slug_plot_length <- renderPlot({
     req(slug_rv$loaded, slug_rv$slugtrack_data)
     pal <- PALETTES[[input$slug_palette %||% "Nature"]]
     opts <- list(
@@ -2945,13 +2942,20 @@ server <- function(input, output, session) {
     plot_df$year_label <- factor(plot_df$year_label,
       levels = paste0("Year ", sel_years, "\n(", wc[sel_years], "% WC)"))
 
-    p <- ggplot(plot_df, aes(x = year_label, y = length)) +
+    # KDE needs labels without newlines for the legend
+    plot_df$kde_label <- factor(
+      paste0("Year ", plot_df$year, " (", wc[plot_df$year], "% WC)"),
+      levels = paste0("Year ", sel_years, " (", wc[sel_years], "% WC)"))
+
+    common_theme <- theme_academic(base_size = opts$text_size, grid = opts$grid,
+                                   border = TRUE, ticks_inward = TRUE)
+
+    p_box <- ggplot(plot_df, aes(x = year_label, y = length)) +
       geom_boxplot(fill = alpha(pal[1], 0.3), color = pal[1],
                    outlier.size = 1, outlier.alpha = 0.5) +
       stat_summary(fun = mean, geom = "point", shape = 23, size = 3,
                    fill = pal[3], color = "black", stroke = 0.5) +
-      theme_academic(base_size = opts$text_size, grid = opts$grid,
-                     border = TRUE, ticks_inward = TRUE) +
+      common_theme +
       theme(
         plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
                                    margin = margin(b = 8)),
@@ -2959,64 +2963,13 @@ server <- function(input, output, session) {
         axis.text = element_text(size = opts$text_size),
         axis.text.x = element_text(lineheight = 1.1)
       ) +
-      labs(x = NULL, y = "Slug Body Length (m)",
-           title = "Slug Body Length Distribution (Box Plot)")
+      labs(x = NULL, y = "Slug Body Length (m)", title = "Box Plot")
 
-    p
-  }, res = 96)
-
-  # ── Fig 4.13: Slug Body Length (KDE) ──────────────────
-  output$slug_plot_length_kde <- renderPlot({
-    req(slug_rv$loaded, slug_rv$slugtrack_data)
-    pal <- PALETTES[[input$slug_palette %||% "Nature"]]
-    opts <- list(
-      title_size = input$slug_title_size %||% 14,
-      label_size = input$slug_label_size %||% 11,
-      text_size = input$slug_text_size %||% 9,
-      grid = input$slug_grid %||% "none"
-    )
-    wc <- slug_water_cuts()
-
-    sheet <- slug_rv$slugtrack_data[["LSLEXP PIPE 6 Trend"]]
-    if (is.null(sheet)) {
-      return(ggplot() + annotate("text", x = 0.5, y = 0.5,
-        label = "LSLEXP PIPE 6 Trend sheet not found", size = 5, color = "#999") +
-        xlim(0, 1) + ylim(0, 1) + theme_void())
-    }
-
-    sel_years <- c(1, 3, 5, 7, 10)
-    all_data <- list()
-    for (yr in sel_years) {
-      x_col <- (yr - 1) * 2 + 1
-      y_col <- x_col + 1
-      if (y_col > ncol(sheet)) next
-      v <- suppressWarnings(as.numeric(sheet[[y_col]]))
-      v <- v[!is.na(v) & v > 0]
-      if (length(v) == 0) next
-      all_data[[length(all_data) + 1]] <- data.frame(
-        year_label = paste0("Year ", yr, " (", wc[yr], "% WC)"),
-        year = yr,
-        length = v,
-        stringsAsFactors = FALSE
-      )
-    }
-
-    if (length(all_data) == 0) {
-      return(ggplot() + annotate("text", x = 0.5, y = 0.5,
-        label = "No slug length data available", size = 5, color = "#999") +
-        xlim(0, 1) + ylim(0, 1) + theme_void())
-    }
-
-    plot_df <- do.call(rbind, all_data)
-    plot_df$year_label <- factor(plot_df$year_label,
-      levels = paste0("Year ", sel_years, " (", wc[sel_years], "% WC)"))
-
-    p <- ggplot(plot_df, aes(x = length, color = year_label, fill = year_label)) +
+    p_kde <- ggplot(plot_df, aes(x = length, color = kde_label, fill = kde_label)) +
       geom_density(alpha = 0.15, linewidth = 0.6) +
-      scale_color_manual(values = rep_len(pal, length(levels(plot_df$year_label)))) +
-      scale_fill_manual(values = rep_len(pal, length(levels(plot_df$year_label)))) +
-      theme_academic(base_size = opts$text_size, grid = opts$grid,
-                     border = TRUE, ticks_inward = TRUE) +
+      scale_color_manual(values = rep_len(pal, length(levels(plot_df$kde_label)))) +
+      scale_fill_manual(values = rep_len(pal, length(levels(plot_df$kde_label)))) +
+      common_theme +
       theme(
         plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
                                    margin = margin(b = 8)),
@@ -3026,10 +2979,12 @@ server <- function(input, output, session) {
         legend.position = "bottom",
         legend.text = element_text(size = opts$text_size - 1)
       ) +
-      labs(x = "Slug Body Length (m)", y = "Density",
-           title = "Slug Body Length Distribution (KDE)")
+      labs(x = "Slug Body Length (m)", y = "Density", title = "Kernel Density Estimate")
 
-    p
+    p_box + p_kde +
+      plot_annotation(title = "Slug Body Length Distribution",
+                      theme = theme(plot.title = element_text(
+                        size = opts$title_size + 2, face = "bold", hjust = 0.5)))
   }, res = 96)
 
   # ── Fig 4.14: Oscillation Amplitude Summary ─────────────
