@@ -2978,8 +2978,13 @@ server <- function(input, output, session) {
         axis.title = element_text(size = opts$label_size),
         axis.text = element_text(size = opts$text_size),
         legend.title = element_blank(),
-        legend.position = "bottom",
-        legend.text = element_text(size = opts$text_size - 1)
+        legend.position = "inside",
+        legend.position.inside = c(0.98, 0.98),
+        legend.justification = c(1, 1),
+        legend.background = element_rect(fill = alpha("white", 0.85), color = "#cccccc", linewidth = 0.3),
+        legend.key.size = unit(0.4, "cm"),
+        legend.text = element_text(size = opts$text_size - 1),
+        legend.margin = margin(3, 5, 3, 5)
       ) +
       labs(x = "Slug Body Length (m)", y = "Density", title = "Kernel Density Estimate")
 
@@ -3313,8 +3318,14 @@ server <- function(input, output, session) {
           common_theme +
           theme(plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5),
                 axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size),
-                legend.title = element_blank(), legend.position = "bottom",
-                legend.text = element_text(size = opts$text_size - 1)) +
+                legend.title = element_blank(),
+                legend.position = "inside",
+                legend.position.inside = c(0.98, 0.98),
+                legend.justification = c(1, 1),
+                legend.background = element_rect(fill = alpha("white", 0.85), color = "#cccccc", linewidth = 0.3),
+                legend.key.size = unit(0.4, "cm"),
+                legend.text = element_text(size = opts$text_size - 1),
+                legend.margin = margin(3, 5, 3, 5)) +
           labs(x = "Slug Body Length (m)", y = "Density", title = "Kernel Density Estimate")
         p_box + p_kde +
           plot_annotation(title = "Slug Body Length Distribution",
