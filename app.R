@@ -2762,7 +2762,7 @@ server <- function(input, output, session) {
       v <- v[!is.na(v) & v > 0]
       if (length(v) == 0) next
       all_data[[length(all_data) + 1]] <- data.frame(
-        year_label = paste0("Year ", yr, " (", round(wc[yr]), "% WC)"),
+        year_label = paste0("Year ", yr, "\n(", round(wc[yr]), "% WC)"),
         year = yr, length = v, stringsAsFactors = FALSE
       )
     }
@@ -2775,7 +2775,7 @@ server <- function(input, output, session) {
 
     plot_df <- do.call(rbind, all_data)
     plot_df$year_label <- factor(plot_df$year_label,
-      levels = paste0("Year ", 1:10, " (", round(wc), "% WC)"))
+      levels = paste0("Year ", 1:10, "\n(", round(wc), "% WC)"))
 
     p <- ggplot(plot_df, aes(x = year_label, y = length)) +
       geom_violin(fill = alpha(pal[1], 0.15), color = pal[1], linewidth = 0.4) +
@@ -2790,7 +2790,7 @@ server <- function(input, output, session) {
                                    margin = margin(b = 8)),
         axis.title = element_text(size = opts$label_size),
         axis.text = element_text(size = opts$text_size),
-        axis.text.x = element_text(angle = 45, hjust = 1, lineheight = 1.1)
+        axis.text.x = element_text(lineheight = 1.1)
       ) +
       labs(x = NULL, y = "Slug Body Length (m)",
            title = "Slug Body Length Distribution \u2014 All Years")
@@ -3441,13 +3441,13 @@ server <- function(input, output, session) {
           v <- v[!is.na(v) & v > 0]
           if (length(v) == 0) next
           all_data[[length(all_data) + 1]] <- data.frame(
-            year_label = paste0("Year ", yr, " (", round(wc[yr]), "% WC)"),
+            year_label = paste0("Year ", yr, "\n(", round(wc[yr]), "% WC)"),
             year = yr, length = v)
         }
         if (length(all_data) == 0) return()
         plot_df <- do.call(rbind, all_data)
         plot_df$year_label <- factor(plot_df$year_label,
-          levels = paste0("Year ", 1:10, " (", round(wc), "% WC)"))
+          levels = paste0("Year ", 1:10, "\n(", round(wc), "% WC)"))
         ggplot(plot_df, aes(x = year_label, y = length)) +
           geom_violin(fill = alpha(pal[1], 0.15), color = pal[1], linewidth = 0.4) +
           geom_boxplot(width = 0.15, fill = alpha(pal[2], 0.3), color = pal[2],
@@ -3457,7 +3457,7 @@ server <- function(input, output, session) {
           theme_academic(base_size = opts$text_size, grid = opts$grid, border = TRUE, ticks_inward = TRUE) +
           theme(plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5),
                 axis.title = element_text(size = opts$label_size), axis.text = element_text(size = opts$text_size),
-                axis.text.x = element_text(angle = 45, hjust = 1, lineheight = 1.1)) +
+                axis.text.x = element_text(lineheight = 1.1)) +
           labs(x = NULL, y = "Slug Body Length (m)",
                title = "Slug Body Length Distribution \u2014 All Years")
       } else if (tab == "Slug Frequency (Fig 4.12)") {
