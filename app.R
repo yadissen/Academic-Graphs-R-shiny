@@ -660,7 +660,7 @@ ui <- page_navbar(
             helpText("Select the time window for time-series plots.",
                      style = "font-size:0.65rem;color:#999;font-style:italic;margin-bottom:8px;"),
             numericInput("slug_t_start", "Start time (s)", value = 0, min = 0, step = 100),
-            numericInput("slug_t_window", "Window duration (s)", value = 2400, min = 60, step = 60)
+            numericInput("slug_t_window", "Window duration (s)", value = 1800, min = 60, step = 60)
           ),
 
           accordion_panel("Water Cut Values", icon = icon("tint"),
@@ -2520,7 +2520,7 @@ server <- function(input, output, session) {
       "Pressure Oscillations at Pipeline Inlet (PIPE-1)",
       slug_panels(),
       input$slug_t_start %||% 0,
-      input$slug_t_window %||% 2400,
+      input$slug_t_window %||% 1800,
       pal, opts, ann_pos = "bottom_right"
     )
   }, res = 96)
@@ -2542,7 +2542,7 @@ server <- function(input, output, session) {
       "Pressure Oscillations at Separator Inlet (PIPE-7)",
       slug_panels(),
       input$slug_t_start %||% 0,
-      input$slug_t_window %||% 2400,
+      input$slug_t_window %||% 1800,
       pal, opts, ann_pos = "top_right"
     )
   }, res = 96)
@@ -2564,7 +2564,7 @@ server <- function(input, output, session) {
       "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
       slug_panels(),
       input$slug_t_start %||% 0,
-      input$slug_t_window %||% 2400,
+      input$slug_t_window %||% 1800,
       pal, opts, var_symbol = "Q", ann_pos = "auto"
     )
   }, res = 96)
@@ -2586,7 +2586,7 @@ server <- function(input, output, session) {
       "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 Slug Tracking",
       slug_panels(),
       input$slug_t_start %||% 0,
-      input$slug_t_window %||% 2400,
+      input$slug_t_window %||% 1800,
       pal, opts, ann_pos = "bottom_right"
     )
   }, res = 96)
@@ -2608,7 +2608,7 @@ server <- function(input, output, session) {
       "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 Slug Tracking",
       slug_panels(),
       input$slug_t_start %||% 0,
-      input$slug_t_window %||% 2400,
+      input$slug_t_window %||% 1800,
       pal, opts, ann_pos = "top_right"
     )
   }, res = 96)
@@ -2630,7 +2630,7 @@ server <- function(input, output, session) {
       "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 Slug Tracking",
       slug_panels(),
       input$slug_t_start %||% 0,
-      input$slug_t_window %||% 2400,
+      input$slug_t_window %||% 1800,
       pal, opts, var_symbol = "Q", ann_pos = "auto"
     )
   }, res = 96)
@@ -2762,7 +2762,7 @@ server <- function(input, output, session) {
     build_slug_all_years(slug_rv$slug_data, "PT PIPE 1 Trend",
       "Pressure (bara)",
       "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 All Years",
-      input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+      input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
   }, res = 96)
 
   output$slug_plot_pt7_all <- renderPlot({
@@ -2778,7 +2778,7 @@ server <- function(input, output, session) {
     build_slug_all_years(slug_rv$slug_data, "PT PIPE 7 Trend",
       "Pressure (bara)",
       "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 All Years",
-      input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+      input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
   }, res = 96)
 
   output$slug_plot_qlt_all <- renderPlot({
@@ -2794,7 +2794,7 @@ server <- function(input, output, session) {
     build_slug_all_years(slug_rv$slug_data, "QLT PIPE 7 Trend",
       "Liquid Flow Rate (m\u00b3/d)",
       "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 All Years",
-      input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+      input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
       var_symbol = "Q")
   }, res = 96)
 
@@ -2812,7 +2812,7 @@ server <- function(input, output, session) {
     build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 1 Trend",
       "Pressure (bara)",
       "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 Slug Tracking All Years",
-      input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+      input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
   }, res = 96)
 
   output$slug_plot_st_pt7_all <- renderPlot({
@@ -2828,7 +2828,7 @@ server <- function(input, output, session) {
     build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 7 Trend",
       "Pressure (bara)",
       "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
-      input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+      input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
   }, res = 96)
 
   output$slug_plot_st_qlt_all <- renderPlot({
@@ -2844,7 +2844,7 @@ server <- function(input, output, session) {
     build_slug_all_years(slug_rv$slugtrack_data, "QLT PIPE 7 Trend",
       "Liquid Flow Rate (m\u00b3/d)",
       "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
-      input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+      input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
       var_symbol = "Q")
   }, res = 96)
 
@@ -3353,52 +3353,52 @@ server <- function(input, output, session) {
     if (tab == "PT PIPE-1 (Fig 4.10)") {
       build_slug_timeseries(slug_rv$slug_data, "PT PIPE 1 Trend",
         "Pressure (bara)", "Pressure Oscillations at Pipeline Inlet (PIPE-1)",
-        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
         ann_pos = "bottom_right")
     } else if (tab == "PT PIPE-7 (Fig 4.10-B)") {
       build_slug_timeseries(slug_rv$slug_data, "PT PIPE 7 Trend",
         "Pressure (bara)", "Pressure Oscillations at Separator Inlet (PIPE-7)",
-        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
         ann_pos = "top_right")
     } else if (tab == "QLT PIPE-7 (Fig 4.11)") {
       build_slug_timeseries(slug_rv$slug_data, "QLT PIPE 7 Trend",
         "Liquid Flow Rate (m\u00b3/d)",
         "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
-        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
         var_symbol = "Q", ann_pos = "auto")
     } else if (tab == "ST PT PIPE-1") {
       build_slug_timeseries(slug_rv$slugtrack_data, "PT PIPE 1 Trend",
         "Pressure (bara)",
         "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 Slug Tracking",
-        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
         ann_pos = "bottom_right")
     } else if (tab == "ST PT PIPE-7") {
       build_slug_timeseries(slug_rv$slugtrack_data, "PT PIPE 7 Trend",
         "Pressure (bara)",
         "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 Slug Tracking",
-        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
         ann_pos = "top_right")
     } else if (tab == "ST QLT PIPE-7") {
       build_slug_timeseries(slug_rv$slugtrack_data, "QLT PIPE 7 Trend",
         "Liquid Flow Rate (m\u00b3/d)",
         "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 Slug Tracking",
-        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+        slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
         var_symbol = "Q", ann_pos = "auto")
     } else if (tab == "ST PT PIPE-1 All Years") {
       build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 1 Trend",
         "Pressure (bara)",
         "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 Slug Tracking All Years",
-        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+        input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
     } else if (tab == "ST PT PIPE-7 All Years") {
       build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 7 Trend",
         "Pressure (bara)",
         "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
-        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+        input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
     } else if (tab == "ST QLT PIPE-7 All Years") {
       build_slug_all_years(slug_rv$slugtrack_data, "QLT PIPE 7 Trend",
         "Liquid Flow Rate (m\u00b3/d)",
         "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
-        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+        input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
         var_symbol = "Q")
     } else if (tab == "ST Amplitude Summary") {
       wc <- slug_water_cuts()
@@ -3439,33 +3439,33 @@ server <- function(input, output, session) {
       build_slug_all_years(slug_rv$slug_data, "PT PIPE 1 Trend",
         "Pressure (bara)",
         "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 All Years",
-        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+        input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
     } else if (tab == "PT PIPE-7 All Years") {
       build_slug_all_years(slug_rv$slug_data, "PT PIPE 7 Trend",
         "Pressure (bara)",
         "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 All Years",
-        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+        input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
     } else if (tab == "QLT PIPE-7 All Years") {
       build_slug_all_years(slug_rv$slug_data, "QLT PIPE 7 Trend",
         "Liquid Flow Rate (m\u00b3/d)",
         "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 All Years",
-        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+        input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
         var_symbol = "Q")
     } else if (tab == "ST PT PIPE-1 All Years") {
       build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 1 Trend",
         "Pressure (bara)",
         "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 Slug Tracking All Years",
-        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+        input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
     } else if (tab == "ST PT PIPE-7 All Years") {
       build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 7 Trend",
         "Pressure (bara)",
         "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
-        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+        input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
     } else if (tab == "ST QLT PIPE-7 All Years") {
       build_slug_all_years(slug_rv$slugtrack_data, "QLT PIPE 7 Trend",
         "Liquid Flow Rate (m\u00b3/d)",
         "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
-        input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+        input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
         var_symbol = "Q")
     } else if (tab == "ST Amplitude Summary") {
       wc <- slug_water_cuts()
@@ -3528,52 +3528,52 @@ server <- function(input, output, session) {
       p <- if (tab == "PT PIPE-1 (Fig 4.10)") {
         build_slug_timeseries(slug_rv$slug_data, "PT PIPE 1 Trend",
           "Pressure (bara)", "Pressure Oscillations at Pipeline Inlet (PIPE-1)",
-          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
           ann_pos = "bottom_right")
       } else if (tab == "PT PIPE-7 (Fig 4.10-B)") {
         build_slug_timeseries(slug_rv$slug_data, "PT PIPE 7 Trend",
           "Pressure (bara)", "Pressure Oscillations at Separator Inlet (PIPE-7)",
-          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
           ann_pos = "top_right")
       } else if (tab == "QLT PIPE-7 (Fig 4.11)") {
         build_slug_timeseries(slug_rv$slug_data, "QLT PIPE 7 Trend",
           "Liquid Flow Rate (m\u00b3/d)",
           "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7)",
-          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
           var_symbol = "Q", ann_pos = "auto")
       } else if (tab == "ST PT PIPE-1") {
         build_slug_timeseries(slug_rv$slugtrack_data, "PT PIPE 1 Trend",
           "Pressure (bara)",
           "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 Slug Tracking",
-          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
           ann_pos = "bottom_right")
       } else if (tab == "ST PT PIPE-7") {
         build_slug_timeseries(slug_rv$slugtrack_data, "PT PIPE 7 Trend",
           "Pressure (bara)",
           "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 Slug Tracking",
-          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
           ann_pos = "top_right")
       } else if (tab == "ST QLT PIPE-7") {
         build_slug_timeseries(slug_rv$slugtrack_data, "QLT PIPE 7 Trend",
           "Liquid Flow Rate (m\u00b3/d)",
           "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 Slug Tracking",
-          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+          slug_panels(), input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
           var_symbol = "Q", ann_pos = "auto")
       } else if (tab == "ST PT PIPE-1 All Years") {
         build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 1 Trend",
           "Pressure (bara)",
           "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 Slug Tracking All Years",
-          input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+          input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
       } else if (tab == "ST PT PIPE-7 All Years") {
         build_slug_all_years(slug_rv$slugtrack_data, "PT PIPE 7 Trend",
           "Pressure (bara)",
           "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
-          input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+          input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
       } else if (tab == "ST QLT PIPE-7 All Years") {
         build_slug_all_years(slug_rv$slugtrack_data, "QLT PIPE 7 Trend",
           "Liquid Flow Rate (m\u00b3/d)",
           "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 Slug Tracking All Years",
-          input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+          input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
           var_symbol = "Q")
       } else if (tab == "ST Amplitude Summary") {
         amp_data <- data.frame(year = integer(), wc = numeric(),
@@ -3614,17 +3614,17 @@ server <- function(input, output, session) {
         build_slug_all_years(slug_rv$slug_data, "PT PIPE 1 Trend",
           "Pressure (bara)",
           "Pressure Oscillations at Pipeline Inlet (PIPE-1) \u2014 All Years",
-          input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+          input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
       } else if (tab == "PT PIPE-7 All Years") {
         build_slug_all_years(slug_rv$slug_data, "PT PIPE 7 Trend",
           "Pressure (bara)",
           "Pressure Oscillations at Separator Inlet (PIPE-7) \u2014 All Years",
-          input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts)
+          input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts)
       } else if (tab == "QLT PIPE-7 All Years") {
         build_slug_all_years(slug_rv$slug_data, "QLT PIPE 7 Trend",
           "Liquid Flow Rate (m\u00b3/d)",
           "Liquid Flow Rate Fluctuations at Separator Inlet (PIPE-7) \u2014 All Years",
-          input$slug_t_start %||% 0, input$slug_t_window %||% 2400, pal, opts,
+          input$slug_t_start %||% 0, input$slug_t_window %||% 1800, pal, opts,
           var_symbol = "Q")
       } else if (tab == "Slug Length All Years") {
         # Rebuild slug length all-years plot inline
