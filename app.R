@@ -2408,24 +2408,25 @@ server <- function(input, output, session) {
     }))
     stats_df$panel <- factor(stats_df$panel, levels = panels$labels)
 
-    # Color-code each panel using the palette color matching its year/case index
-    panel_colors <- setNames(pal[panels$cases], panels$labels)
+    # Assign color by year index so 3-panel colors match the all-years grid
+    color_map <- setNames(
+      pal[((panels$cases - 1) %% length(pal)) + 1],
+      panels$labels
+    )
 
     p <- ggplot(plot_df, aes(x = time, y = value, color = panel)) +
-      geom_line(linewidth = opts$lw) +
-      facet_wrap(~ panel, ncol = 1) +
-      scale_color_manual(values = panel_colors, guide = "none") +
-      theme_academic(base_size = opts$text_size, grid = opts$grid,
+      geom_line(linewidth = opts$lw, show.legend = FALSE) +
+      facet_wrap(~ panel, ncol = 1, scales = "free_y") +
+      scale_color_manual(values = color_map) +
+      theme_academic(base_size = opts$label_size, grid = opts$grid,
                      border = TRUE, ticks_inward = TRUE) +
       theme(
         strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
-        strip.text = element_text(size = opts$label_size * 0.9, face = "bold",
-                                   color = "#1a1714", margin = margin(t = 4, b = 4)),
-        panel.spacing = unit(14, "pt"),
+        strip.text = element_text(size = opts$label_size - 1, face = "bold",
+                                  color = "#1a1714", margin = margin(4, 0, 4, 0)),
+        panel.spacing = unit(1, "lines"),
         plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
-                                   margin = margin(b = 8)),
-        axis.title = element_text(size = opts$label_size),
-        axis.text = element_text(size = opts$text_size)
+                                   margin = margin(b = 8))
       ) +
       labs(x = "Time (s)", y = y_label, title = title)
 
@@ -2479,18 +2480,17 @@ server <- function(input, output, session) {
       stats_df$ann_vjust <- if (grepl("bottom", ann_pos)) 0 else 1
     }
 
-    # Map each panel to its matching palette color for dashed lines and annotations
-    stats_df$line_color <- panel_colors[as.character(stats_df$panel)]
-    stats_df$ann_color  <- panel_colors[as.character(stats_df$panel)]
+    # Add per-panel color to stats_df for mean lines and labels
+    stats_df$panel_color <- color_map[as.character(stats_df$panel)]
 
     p <- p +
       geom_hline(data = stats_df, aes(yintercept = mean_val),
-                 linetype = "dashed", color = stats_df$line_color, linewidth = 0.4) +
+                 linetype = "dashed", color = stats_df$panel_color, linewidth = 0.4) +
       geom_label(data = stats_df,
                  aes(x = ann_x, y = ann_y,
                      label = ann_label, hjust = ann_hjust, vjust = ann_vjust),
                  size = 2.5,
-                 color = stats_df$ann_color,
+                 color = stats_df$panel_color,
                  fill = alpha("white", 0.92), label.size = 0.2,
                  label.padding = unit(3, "pt"), lineheight = 1.2)
 
@@ -2648,35 +2648,38 @@ server <- function(input, output, session) {
     corner_results$panel <- factor(corner_results$panel, levels = levels(plot_df$panel))
     stats_df <- merge(stats_df, corner_results, by = "panel")
 
-    # Color-code each year with a distinct palette color
-    year_colors <- setNames(pal[1:length(labels)], labels)
-    # Map each panel to its matching color for dashed lines and annotations
-    stats_df$line_color <- year_colors[as.character(stats_df$panel)]
-    stats_df$ann_color  <- year_colors[as.character(stats_df$panel)]
+    # Assign one color per panel (matching reference profile matrix style)
+    panel_levels <- levels(plot_df$panel)
+    color_map <- setNames(
+      pal[((seq_along(panel_levels) - 1) %% length(pal)) + 1],
+      panel_levels
+    )
+
+    # Add per-panel color to stats_df for mean lines
+    stats_df$panel_color <- color_map[as.character(stats_df$panel)]
 
     p <- ggplot(plot_df, aes(x = time, y = value, color = panel)) +
-      geom_line(linewidth = opts$lw * 0.8) +
-      facet_wrap(~ panel, ncol = 5) +
-      scale_color_manual(values = year_colors, guide = "none") +
+      geom_line(linewidth = opts$lw * 0.8, show.legend = FALSE) +
+      facet_wrap(~ panel, ncol = 5, scales = "fixed") +
+      scale_color_manual(values = color_map) +
       geom_hline(data = stats_df, aes(yintercept = mean_val),
-                 linetype = "dashed", color = stats_df$line_color, linewidth = 0.3) +
+                 linetype = "dashed", color = stats_df$panel_color, linewidth = 0.3) +
       geom_label(data = stats_df,
                  aes(x = ann_x, y = ann_y,
                      label = ann_label, hjust = ann_hjust, vjust = ann_vjust),
-                 size = 2.2, color = stats_df$ann_color,
+                 size = 2.2, color = stats_df$panel_color,
                  fill = alpha("white", 0.92), label.size = 0.15,
-                 label.padding = unit(3, "pt"), lineheight = 1.1) +
-      theme_academic(base_size = opts$text_size * 0.85, grid = opts$grid,
+                 label.padding = unit(3, "pt"), lineheight = 1.1,
+                 show.legend = FALSE) +
+      theme_academic(base_size = opts$label_size, grid = opts$grid,
                      border = TRUE, ticks_inward = TRUE) +
       theme(
-        strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.4),
-        strip.text = element_text(size = opts$label_size * 0.7, face = "bold",
-                                   color = "#1a1714", margin = margin(t = 2, b = 2)),
-        panel.spacing = unit(8, "pt"),
+        strip.background = element_rect(fill = "white", color = "#1a1a1a", linewidth = 0.5),
+        strip.text = element_text(size = opts$label_size - 1, face = "bold",
+                                  color = "#1a1714", margin = margin(4, 0, 4, 0)),
+        panel.spacing = unit(1, "lines"),
         plot.title = element_text(size = opts$title_size, face = "bold", hjust = 0.5,
-                                   margin = margin(b = 6)),
-        axis.title = element_text(size = opts$label_size * 0.9),
-        axis.text = element_text(size = opts$text_size * 0.8)
+                                   margin = margin(b = 10))
       ) +
       labs(x = "Time (s)", y = y_label, title = title)
 
